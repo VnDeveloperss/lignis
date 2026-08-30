@@ -22,34 +22,45 @@ const App = (function () {
   }
 
   function showErrorScreen(message) {
-    const overlay = document.getElementById("loading-overlay");
-    if (!overlay) return;
-    overlay.innerHTML = `
-      <div style="text-align:center;max-width:420px;padding:24px;">
-        <div style="font-size:48px;margin-bottom:16px;color:var(--warning,#ffa726);">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
-        <h2 style="color:var(--text-primary,#e0e0e0);margin-bottom:8px;font-size:18px;">Não foi possível iniciar o Lignis.</h2>
-        <p style="color:var(--text-muted,#888);font-size:13px;margin-bottom:20px;">${escapeHtmlSafe(message)}</p>
-        <div style="display:flex;gap:10px;justify-content:center;">
-          <button id="error-retry-btn" style="padding:8px 20px;border:none;border-radius:6px;background:var(--accent,#4a9eff);color:#fff;cursor:pointer;font-size:13px;">Tentar novamente</button>
-          <button id="error-close-btn" style="padding:8px 20px;border:1px solid var(--border-light,#333);border-radius:6px;background:transparent;color:var(--text-secondary,#aaa);cursor:pointer;font-size:13px;">Fechar</button>
-        </div>
-      </div>`;
-    document.getElementById("error-retry-btn").onclick = () => location.reload();
-    document.getElementById("error-close-btn").onclick = () => { try { window.lignisAPI.invoke("force-close"); } catch (_) { window.close(); } };
+    try {
+      const overlay = document.getElementById("loading-overlay");
+      if (!overlay) return;
+      const safeMsg = escapeHtmlSafe(message || "Erro desconhecido.");
+      overlay.innerHTML = `
+        <div style="text-align:center;max-width:420px;padding:24px;">
+          <div style="font-size:48px;margin-bottom:16px;color:#ffa726;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <h2 style="color:#e0e0e0;margin-bottom:8px;font-size:18px;">Não foi possível iniciar o Lignis.</h2>
+          <p style="color:#888;font-size:13px;margin-bottom:20px;">${safeMsg}</p>
+          <p style="color:#666;font-size:11px;margin-bottom:16px;">Abra o Console (F12) para ver detalhes do erro.</p>
+          <div style="display:flex;gap:10px;justify-content:center;">
+            <button id="error-retry-btn" style="padding:8px 20px;border:none;border-radius:6px;background:#4a9eff;color:#fff;cursor:pointer;font-size:13px;">Tentar novamente</button>
+            <button id="error-close-btn" style="padding:8px 20px;border:1px solid #333;border-radius:6px;background:transparent;color:#aaa;cursor:pointer;font-size:13px;">Fechar</button>
+          </div>
+        </div>`;
+      document.getElementById("error-retry-btn").onclick = () => location.reload();
+      document.getElementById("error-close-btn").onclick = () => { try { window.lignisAPI.invoke("force-close"); } catch (_) { window.close(); } };
+    } catch (e) {
+      console.error("[STARTUP] Erro ao mostrar tela de erro:", e);
+    }
   }
 
   function escapeHtmlSafe(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+    try {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    } catch (_) {
+      return String(str || "");
+    }
   }
 
   async function init() {
     try {
       startupState = "BOOTING";
-      console.log("[Lignis] BOOTSTRAP iniciado.");
+      console.log("[STARTUP] BOOTSTRAP iniciado.");
+      console.log("[STARTUP] Electron:", process.versions?.electron || "?", "Chrome:", process.versions?.chrome || "?");
 
       // Step 1: Locale
       setLoadingText("Preparando interface...");
@@ -57,7 +68,7 @@ const App = (function () {
         Locale.register("pt-BR", LOCALE_PT_BR);
         Locale.set("pt-BR");
       }
-      console.log("[Lignis] I18N pronto.");
+      console.log("[STARTUP] I18N pronto.");
 
       // Step 2: Icons (non-critical — optional)
       try { IconService.init(); } catch (e) { console.warn("[Lignis] Falha ao inicializar ícones:", e); }
@@ -83,14 +94,16 @@ const App = (function () {
 
       // Step 5: Settings (critical)
       setLoadingText("Carregando configurações...");
+      console.log("[STARTUP] Settings iniciando...");
       await SettingsManager.init();
-      console.log("[Lignis] SETTINGS pronto.");
+      console.log("[STARTUP] Settings pronto.");
 
       // Step 6: Monaco Editor (critical — has its own timeout)
       startupState = "LOADING_EDITOR";
       setLoadingText("Carregando editor...");
+      console.log("[STARTUP] Monaco iniciando...");
       await EditorManager.init();
-      console.log("[Lignis] MONACO pronto.");
+      console.log("[STARTUP] Monaco pronto.");
 
       // Step 7: Session restore
       startupState = "RESTORING";
@@ -134,15 +147,27 @@ const App = (function () {
       // ── READY ──
       startupState = "READY";
       document.getElementById("loading-overlay").classList.add("hidden");
-      console.log("[Lignis] READY — startup completo.");
+      console.log("[STARTUP] READY — startup completo.");
 
       // Apply HTML preview setting
       htmlPreviewEnabled = SettingsManager.get("htmlPreviewScripts") || false;
 
     } catch (err) {
       startupState = "FAILED";
-      console.error("[Lignis] FALHA no startup:", err);
-      showErrorScreen(err.message || "Erro desconhecido durante a inicialização.");
+      console.error("[STARTUP] FALHA no startup:", err);
+      try {
+        showErrorScreen(err.message || "Erro desconhecido durante a inicialização.");
+      } catch (e2) {
+        // Last resort: replace overlay content directly
+        const overlay = document.getElementById("loading-overlay");
+        if (overlay) {
+          overlay.innerHTML = `<div style="text-align:center;padding:40px;color:#e0e0e0;font-family:sans-serif;">
+            <h2 style="color:#ff6b6b;">Não foi possível iniciar o Lignis.</h2>
+            <p style="color:#888;margin:12px 0;">${err.message || "Erro desconhecido."}</p>
+            <button onclick="location.reload()" style="margin-top:16px;padding:8px 24px;background:#4a9eff;color:white;border:none;border-radius:6px;cursor:pointer;">Tentar novamente</button>
+          </div>`;
+        }
+      }
     }
   }
 
@@ -1635,5 +1660,30 @@ const App = (function () {
 })();
 
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("[STARTUP] DOMContentLoaded disparado.");
   App.init();
 });
+
+// Catch unhandled Promise rejections to prevent silent failures
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("[STARTUP] Unhandled Promise rejection:", event.reason);
+});
+
+// Catch uncaught errors
+window.addEventListener("error", (event) => {
+  console.error("[STARTUP] Uncaught error:", event.message, event.filename, event.lineno);
+});
+
+// ── Global watchdog: ensure loading overlay is never stuck forever ──
+setTimeout(() => {
+  const overlay = document.getElementById("loading-overlay");
+  if (overlay && !overlay.classList.contains("hidden")) {
+    console.error("[STARTUP] Watchdog: overlay ainda visível após 30s. Forçando mensagem de erro.");
+    overlay.innerHTML = `<div style="text-align:center;padding:40px;color:#e0e0e0;font-family:sans-serif;">
+      <h2 style="color:#ff6b6b;">Não foi possível iniciar o Lignis.</h2>
+      <p style="color:#888;margin:12px 0;">A inicialização excedeu o tempo limite.</p>
+      <p style="color:#666;font-size:12px;margin:8px 0;">Abra o Console (F12) para ver detalhes do erro.</p>
+      <button onclick="location.reload()" style="margin-top:16px;padding:8px 24px;background:#4a9eff;color:white;border:none;border-radius:6px;cursor:pointer;">Tentar novamente</button>
+    </div>`;
+  }
+}, 30000);
