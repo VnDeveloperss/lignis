@@ -86,6 +86,7 @@ const StatusBar = (function () {
     popup.style.position = "fixed";
     popup.style.right = "8px";
     popup.style.bottom = "32px";
+    popup.style.zIndex = FloatingUIManager ? FloatingUIManager.getZIndex("POPOVER") : 10000;
     popup.classList.remove("hidden");
 
     const handler = (ev) => {
@@ -97,10 +98,14 @@ const StatusBar = (function () {
       updateZoom(z);
       SettingsManager.set("fontSize", size);
       document.getElementById("font-size-display").textContent = size + "px";
-      popup.classList.add("hidden");
-      document.removeEventListener("click", handler);
+      FloatingUIManager.closeById("zoom-picker");
     };
-    setTimeout(() => document.addEventListener("click", handler, { once: true }), 10);
+    popup.addEventListener("click", handler);
+
+    FloatingUIManager.open("zoom-picker", popup, {
+      anchor: e.target,
+      onClose: () => { popup.removeEventListener("click", handler); EditorManager.focus(); },
+    });
   }
 
   // ── Indentation Picker ──
@@ -114,6 +119,7 @@ const StatusBar = (function () {
     popup.style.position = "fixed";
     popup.style.right = "8px";
     popup.style.bottom = "32px";
+    popup.style.zIndex = FloatingUIManager ? FloatingUIManager.getZIndex("POPOVER") : 10000;
     popup.classList.remove("hidden");
 
     const handler = (ev) => {
@@ -131,10 +137,14 @@ const StatusBar = (function () {
         EditorManager.setTabSize(size);
       }
       updateIndentationInfo();
-      popup.classList.add("hidden");
-      document.removeEventListener("click", handler);
+      FloatingUIManager.closeById("indent-picker");
     };
-    setTimeout(() => document.addEventListener("click", handler, { once: true }), 10);
+    popup.addEventListener("click", handler);
+
+    FloatingUIManager.open("indent-picker", popup, {
+      anchor: document.getElementById("status-indentation"),
+      onClose: () => { popup.removeEventListener("click", handler); EditorManager.focus(); },
+    });
   }
 
   // ── Language Picker ──
@@ -170,31 +180,58 @@ const StatusBar = (function () {
 
   function openLanguagePicker() {
     const overlay = document.getElementById("language-overlay");
+    const searchInput = document.getElementById("language-search-input");
     const list = document.getElementById("language-list-content");
     const tab = TabManager.getActiveTab();
     if (!tab) return;
     const currentLang = tab.language || "plaintext";
-    list.innerHTML = LANGUAGES.map(l =>
-      `<div class="language-item ${l.id === currentLang ? "active" : ""}" data-lang="${l.id}">${l.label}</div>`
-    ).join("");
+
+    function renderLangList(filter) {
+      const q = (filter || "").toLowerCase();
+      const filtered = q ? LANGUAGES.filter(l => l.label.toLowerCase().includes(q)) : LANGUAGES;
+      list.innerHTML = filtered.map(l =>
+        `<div class="language-item ${l.id === currentLang ? "active" : ""}" data-lang="${l.id}">${l.label}</div>`
+      ).join("");
+    }
+    renderLangList("");
+    if (searchInput) { searchInput.value = ""; searchInput.focus(); }
+    else overlay.focus();
     overlay.classList.remove("hidden");
-    const handler = (e) => {
+
+    const selectHandler = (e) => {
       const item = e.target.closest(".language-item");
       if (!item) return;
       const langId = item.dataset.lang;
       const model = EditorManager.getModel();
       if (model) {
         tab.language = langId;
-        require(["vs/editor/editor.main"], () => monaco.editor.setModelLanguage(model, langId));
+        if (typeof monaco !== "undefined") monaco.editor.setModelLanguage(model, langId);
         updateLanguage(LANGUAGES.find(l => l.id === langId)?.label || langId);
       }
-      overlay.classList.add("hidden");
-      list.removeEventListener("click", handler);
-      EditorManager.focus();
+      closeLanguagePicker(selectHandler, searchHandler);
     };
-    list.addEventListener("click", handler);
-    document.getElementById("language-cancel-btn").onclick = () => { overlay.classList.add("hidden"); list.removeEventListener("click", handler); EditorManager.focus(); };
-    overlay.onclick = (ev) => { if (ev.target === overlay) { overlay.classList.add("hidden"); list.removeEventListener("click", handler); EditorManager.focus(); } };
+
+    const searchHandler = (e) => {
+      renderLangList(e.target.value);
+    };
+
+    list.addEventListener("click", selectHandler);
+    if (searchInput) searchInput.addEventListener("input", searchHandler);
+
+    FloatingUIManager.open("language-picker", overlay, {
+      anchor: document.getElementById("status-language"),
+      onClose: () => closeLanguagePicker(selectHandler, searchHandler),
+    });
+  }
+
+  function closeLanguagePicker(selectHandler, searchHandler) {
+    const overlay = document.getElementById("language-overlay");
+    const searchInput = document.getElementById("language-search-input");
+    const list = document.getElementById("language-list-content");
+    overlay.classList.add("hidden");
+    list.removeEventListener("click", selectHandler);
+    if (searchInput && searchHandler) searchInput.removeEventListener("input", searchHandler);
+    EditorManager.focus();
   }
 
   return {

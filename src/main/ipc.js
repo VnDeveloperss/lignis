@@ -2,6 +2,17 @@ const { ipcMain, dialog, app, shell, clipboard } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const { StringDecoder } = require("string_decoder");
+
+// Optional native PTY backend (e.g. `npm i node-pty && npm rebuild node-pty`).
+// When available we get a real pseudo-terminal (resize, interactive TUIs).
+// Otherwise we fall back to a robust pipe-based spawn.
+let ptyLib = null;
+try {
+  ptyLib = require("node-pty");
+} catch (_) {
+  ptyLib = null;
+}
 
 // Allowed IPC invoke channels (renderer -> main)
 const ALLOWED_INVOKE_CHANNELS = [
@@ -492,14 +503,21 @@ function setupIpc(mainWindow, store) {
   let terminalIdCounter = 0;
 
   function getShell() {
+    const fs = require("fs");
     if (process.platform === "win32") {
-      return process.env.COMSPEC || "cmd.exe";
+      // Prefer PowerShell 7+ > Windows PowerShell > CMD
+      const pwsh7 = "pwsh.exe";
+      const pwsh = "powershell.exe";
+      const comspec = process.env.COMSPEC || "cmd.exe";
+      // Quick heuristic: try pwsh first, fall back to powershell, then comspec
+      return pwsh7; // Most modern; fallback is automatic via spawn error handling
     }
     return process.env.SHELL || "/bin/bash";
   }
 
   function getShellArgs() {
     if (process.platform === "win32") {
+      // Don't pass -NoLogo for pwsh/powershell; cmd.exe takes no args
       return [];
     }
     return [];
@@ -509,36 +527,101 @@ function setupIpc(mainWindow, store) {
     try {
       const id = "term_" + (++terminalIdCounter);
       const cwd = (options && options.cwd) || app.getPath("home");
-      const shellCmd = getShell();
-      const shellArgs = getShellArgs();
+      const cols = (options && options.cols) || 80;
+      const rows = (options && options.rows) || 24;
+      const env = { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" };
 
+      if (ptyLib) {
+        let shellCmd = getShell();
+        let shellArgs = getShellArgs();
+        // On Windows, try PowerShell 7, then Windows PowerShell, then CMD
+        if (process.platform === "win32") {
+          const { execSync } = require("child_process");
+          let resolved = false;
+          for (const sh of ["pwsh.exe", "powershell.exe", "cmd.exe"]) {
+            try {
+              execSync(`where ${sh}`, { stdio: "ignore" });
+              shellCmd = sh;
+              resolved = true;
+              break;
+            } catch (_) {}
+          }
+          if (!resolved) shellCmd = "cmd.exe";
+        }
+        const pty = ptyLib.spawn(shellCmd, shellArgs, {
+          name: "xterm-256color",
+          cols,
+          rows,
+          cwd,
+          env,
+        });
+        pty.onData((data) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("terminal-data", { id, data });
+          }
+        });
+        pty.onExit(({ exitCode }) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("terminal-data", {
+              id,
+              data: `\r\n[Processo finalizado: ${exitCode}]\r\n`,
+            });
+          }
+          terminals.delete(id);
+        });
+        terminals.set(id, { pty, proc: null, cols, rows });
+        return { success: true, data: { id }, pty: true };
+      }
+
+      // Fallback: child_process spawn (no real PTY, but works)
+      let shellCmd = getShell();
+      let shellArgs = getShellArgs();
+      if (process.platform === "win32") {
+        const { execSync } = require("child_process");
+        for (const sh of ["pwsh.exe", "powershell.exe", "cmd.exe"]) {
+          try { execSync(`where ${sh}`, { stdio: "ignore" }); shellCmd = sh; break; } catch (_) {}
+        }
+      }
       const proc = spawn(shellCmd, shellArgs, {
         cwd,
-        env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" },
+        env,
         stdio: ["pipe", "pipe", "pipe"],
         shell: process.platform !== "win32",
+        windowsHide: true,
       });
 
-      proc.stdout.on("data", (data) => {
+      const stdoutDecoder = new StringDecoder("utf-8");
+      const stderrDecoder = new StringDecoder("utf-8");
+      proc.stdout.on("data", (chunk) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("terminal-data", { id, data: data.toString("utf-8") });
+          mainWindow.webContents.send("terminal-data", { id, data: stdoutDecoder.write(chunk) });
         }
       });
-
-      proc.stderr.on("data", (data) => {
+      proc.stderr.on("data", (chunk) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("terminal-data", { id, data: data.toString("utf-8") });
+          mainWindow.webContents.send("terminal-data", { id, data: stderrDecoder.write(chunk) });
         }
       });
-
+      proc.on("close", () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          const tail = stdoutDecoder.end() + stderrDecoder.end();
+          if (tail) mainWindow.webContents.send("terminal-data", { id, data: tail });
+        }
+        terminals.delete(id);
+      });
+      proc.on("error", (err) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("terminal-data", { id, data: `\r\n[Erro ao iniciar o shell: ${err.message}]\r\n` });
+        }
+      });
       proc.on("exit", (code) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("terminal-data", { id, data: `\r\n[Processo finalizado: ${code}]\r\n` });
         }
         terminals.delete(id);
       });
-
-      terminals.set(id, { proc, cols: options?.cols || 80, rows: options?.rows || 24 });
+      if (proc.stdin) proc.stdin.on("error", () => {});
+      terminals.set(id, { pty: null, proc, cols, rows });
       return { success: true, data: { id } };
     } catch (err) {
       return { success: false, error: `Falha ao criar terminal: ${err.message}` };
@@ -547,9 +630,13 @@ function setupIpc(mainWindow, store) {
 
   ipcMain.handle("terminal-write", (event, id, data) => {
     const term = terminals.get(id);
-    if (!term || !term.proc) return { success: false, error: "Terminal não encontrado." };
+    if (!term) return { success: false, error: "Terminal não encontrado." };
     try {
-      term.proc.stdin.write(data);
+      if (term.pty) {
+        term.pty.write(data);
+      } else if (term.proc && term.proc.stdin) {
+        term.proc.stdin.write(data);
+      }
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -561,16 +648,24 @@ function setupIpc(mainWindow, store) {
     if (!term) return { success: false };
     term.cols = cols;
     term.rows = rows;
-    // Note: without node-pty, we can't resize the actual PTY.
-    // The xterm.js render will handle visual resizing.
+    // Real PTY resize is only possible with node-pty.
+    if (term.pty && typeof term.pty.resize === "function") {
+      try {
+        term.pty.resize(cols, rows);
+      } catch (_) {}
+    }
     return { success: true };
   });
 
   ipcMain.handle("terminal-kill", (event, id) => {
     const term = terminals.get(id);
-    if (!term || !term.proc) return { success: false };
+    if (!term) return { success: false };
     try {
-      term.proc.kill();
+      if (term.pty) {
+        term.pty.kill();
+      } else if (term.proc) {
+        term.proc.kill();
+      }
     } catch (_) {}
     terminals.delete(id);
     return { success: true };

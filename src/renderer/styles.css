@@ -1,5 +1,5 @@
 /* ========================================
-   Lignis v3.0.0 - Design Tokens & Themes
+   Lignis v3.3.0 - Design Tokens & Themes
    ======================================== */
 
 /* ─── Design Tokens ─────────────────────── */
@@ -801,19 +801,29 @@ select:focus { border-color: var(--accent); }
 
 /* Language Picker */
 #language-dialog {
-  background: var(--bg-panel); border: 1px solid var(--border-light);
+  background: var(--bg-elevated); border: 1px solid var(--border-light);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
-  padding: 24px; min-width: 300px; max-height: 60vh;
-  display: flex; flex-direction: column;
+  min-width: 260px; max-height: 340px;
+  display: flex; flex-direction: column; overflow: hidden;
 }
-#language-dialog h3 { font-size: 15px; margin-bottom: 16px; }
-.language-list { overflow-y: auto; flex: 1; }
+.language-search {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.language-search i { color: var(--text-muted); font-size: 12px; }
+.language-search input {
+  flex: 1; background: none; border: none; color: var(--text-primary);
+  font-size: 13px; font-family: var(--font-ui); outline: none;
+}
+.language-search input::placeholder { color: var(--text-muted); }
+.language-list { overflow-y: auto; flex: 1; padding: 4px 0; }
 .language-item {
-  padding: 6px 12px; cursor: pointer; border-radius: var(--radius-sm);
+  padding: 5px 14px; cursor: pointer; border-radius: var(--radius-sm);
   font-size: 13px; color: var(--text-primary); transition: background var(--transition-fast);
+  margin: 0 4px;
 }
-.language-item:hover, .language-item.active { background: var(--accent-dim); }
-.language-item.active { color: var(--accent); font-weight: 500; }
+.language-item:hover { background: var(--accent-dim); }
+.language-item.active { color: var(--accent); font-weight: 500; background: var(--accent-dim); }
 
 /* ========================================
    Commands Help Dialog
@@ -947,6 +957,24 @@ select:focus { border-color: var(--accent); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ========================================
+   Z-Index Scale (consolidated)
+   ======================================== */
+/* Base: editor=0, sidebar=100, toolbar/statusbar=200 */
+/* Dropdown/Popover: 5000-5500 (managed by FloatingUIManager) */
+/* Context menu: 6000 */
+/* Command palette: 7000 */
+/* Modal backdrop: 8000 */
+/* Toast: 9000 */
+#context-menu, #tab-context-menu { z-index: 6000; }
+#command-palette-overlay { z-index: 7000; }
+#quick-open-overlay { z-index: 7000; }
+#settings-overlay { z-index: 8000; }
+#about-overlay, #goto-overlay, #stats-overlay, #shortcuts-overlay,
+#language-overlay, #commands-help-overlay, #update-overlay { z-index: 8000; }
+#toast-container { z-index: 9000; }
+.unsaved-overlay { z-index: 10002; }
+
+/* ========================================
    Utility
    ======================================== */
 .hidden { display: none !important; }
@@ -1013,6 +1041,8 @@ body[data-focused="true"]:hover #sidebar {
   display: flex; flex-direction: column;
   overflow: hidden; flex-shrink: 0;
   background: #0d0d0d;
+  height: 200px;
+  min-height: 80px;
 }
 .terminal-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -1020,17 +1050,26 @@ body[data-focused="true"]:hover #sidebar {
   border-bottom: 1px solid var(--border);
   font-size: 12px; color: var(--text-secondary);
   flex-shrink: 0;
+  cursor: default;
 }
 .terminal-title {
   display: flex; align-items: center; gap: 6px;
   font-weight: 500;
 }
+.terminal-header-actions {
+  display: flex; align-items: center; gap: 2px;
+}
 .terminal-header-btn {
   background: transparent; border: none; color: var(--text-muted);
   cursor: pointer; padding: 2px 6px; border-radius: 3px;
-  font-size: 12px;
+  font-size: 12px; line-height: 1;
 }
 .terminal-header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 #terminal-container {
   flex: 1; overflow: hidden; background: #0d0d0d;
 }
+.terminal-drag-handle {
+  height: 4px; cursor: ns-resize; flex-shrink: 0;
+  background: transparent; transition: background var(--transition-fast);
+}
+.terminal-drag-handle:hover { background: var(--accent); }

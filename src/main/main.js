@@ -268,9 +268,14 @@ ipcMain.handle("update-check-manual", () => {
 });
 
 app.on("window-all-closed", () => {
+  // Cleanup: the ipc module cleans up terminals via its local map
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  isForceClose = true;
 });
 
 module.exports = { mainWindow: () => mainWindow, getStore: () => store, forceClose: () => { isForceClose = true; if (mainWindow) mainWindow.destroy(); } };

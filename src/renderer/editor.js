@@ -244,8 +244,8 @@ const EditorManager = (function () {
             showFoldingControls: "mouseover",
             renderLineHighlight: "all",
             lineHeight: SM ? parseFloat(SM.get("lineHeight")) || 1.5 : 1.5,
-            multiCursorModifier: "ctrlCmd",
-            columnSelection: true,
+            multiCursorModifier: "alt",
+            columnSelection: false,
             contextmenu: false,
           };
 

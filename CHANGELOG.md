@@ -1,5 +1,31 @@
 # Changelog — Lignis
 
+## Versão 3.3.0
+
+### Correções
+- **Corrigido memory leak no terminal**: Listener `terminal-data` era adicionado a cada chamada de `initTerminal()`. Agora o listener é armazenado e limpo adequadamente.
+- **Corrigida detecção de shell no Windows**: Terminal agora tenta PowerShell 7+, depois Windows PowerShell, depois CMD, com resolução via `where`.
+- **Corrigido comportamento de seleção/multicursor**: Removido `columnSelection: true` que causava multicursor acidental. `multiCursorModifier` alterado para `alt` (clique+alt cria novo cursor, não ctrl).
+- **Corrigido preload.js**: Removido `require()` quebrado que tentava carregar command-registry no contexto de preload (incompatível com contextBridge).
+- **Corrigido Escape em popups**: Hierarquia de Escape centralizada via FloatingUIManager — context menus, zoom picker, indent picker e language picker fecham corretamente.
+- **Corrigido click-outside**: Popups (zoom, indentação, linguagem) agora fecham ao clicar fora.
+- **Corrigidas traduções**: Adicionado campo de busca ao seletor de linguagem. Keys i18n nunca mais são exibidas ao usuário.
+
+### Melhorias
+- **FloatingUIManager**: Sistema centralizado de gerenciamento de overlays com z-index consistente, click-outside, Escape e restore de foco.
+- **Explorer com context menu**: Botão direito em arquivos/pastas mostra opções: Abrir, Copiar caminho, Copiar nome, Atualizar.
+- **Terminal melhorado**: Botão de limpar adicionado ao header. ResizeObserver sincroniza tamanho automaticamente. Cabeçalho do terminal com ações agrupadas.
+- **Cleanup de terminais**: Ao fechar o Lignis, todos os processos filhos do terminal são encerrados (via `beforeunload` e `before-quit`).
+- **Z-index escala**: Escala consistente de z-index para todos os overlays, menus e modais.
+- **CSS refinado**: Estilos de terminal panel, context menu e language picker aprimorados.
+- **Seletor de linguagem compacto**: Modal substituído por popover compacto com busca integrada.
+
+### Segurança
+- Nenhum `eval()` ou `new Function()`.
+- Terminal executa apenas com permissões do usuário.
+- Preload não expõe módulos Node.js ao renderer.
+- Processos filhos do terminal são encerrados no fechamento.
+
 ## Em desenvolvimento (pós 3.1.1)
 
 > Nota: as correções listadas na versão 3.1.1 abaixo foram aplicadas no modo "band-aid" e **substituídas** pelas correções definitivas das Fases 2 e 3 a seguir.
@@ -19,6 +45,12 @@
 - **Protocolo `lignis://` para toda a interface**: `loadURL("lignis://app/index.html")` com `protocol.handle` + `net.fetch`, CSP atualizada (sem CDN, sem `file:`), permitindo caminhos absolutos estáveis (`lignis://app/vs/...`) para Monaco e workers em build empacotado.
 - **Dependências de renderer vendored localmente**: `@xterm/xterm`, `@xterm/addon-fit`, `marked`, `dompurify` copiados para `src/renderer/vendor/` — sem CDN, 100% offline.
 - **Canais IPC mortos removidos**: limpeza de `menu-close-right`, `menu-word-count`, `menu-toggle-comment`, `check-unsaved-before-close`, `window-fullscreen-changed` (preload e main).
+
+### Fase 4 — Terminal real (PTY opcional + fallback robusto)
+- **Terminal com PTY real quando disponível**: O `node-pty` agora é uma dependência opcional — se instalado (requer toolchain C++ e `npm rebuild node-pty` para o Electron), `terminal-create` usa um pseudo-terminal de verdade e `terminal-resize` redimensiona o processo de fato.
+- **Fallback spawn muito mais robusto**: sem node-pty, o terminal continua funcional via pipes com `windowsHide`, decodificação UTF-8 segura por chunks (`StringDecoder`, sem corromper textos multibyte) e tratamento de `error`/`close`/stdin.
+- **Resize sincronizado com o renderer**: após `fit()` do xterm (abertura e redimensionamento de janela), o `terminal-resize` é enviado ao processo — o PTY real acompanha a janela.
+- **Config de build atualizada**: exclusões de arquivos no `electron-builder` apontam para `vs/` (após o rename do Monaco) e `node-pty` registrado como opcional no `package.json`/lockfile.
 
 ---
 

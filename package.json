@@ -1,6 +1,6 @@
 {
   "name": "lignis",
-  "version": "3.1.1",
+  "version": "3.3.0",
   "description": "Lignis - Editor de texto e código moderno, rápido e extensível",
   "main": "src/main/main.js",
   "scripts": {
@@ -32,6 +32,9 @@
     "marked": "^9.1.6",
     "monaco-editor": "^0.44.0"
   },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
+  },
   "build": {
     "appId": "com.lignis.app",
     "productName": "Lignis",
@@ -40,8 +43,8 @@
     },
     "files": [
       "src/**/*",
-      "!src/renderer/monaco/base/common/worker/*.nls.*.js",
-      "!src/renderer/monaco/min-maps/**"
+      "!src/renderer/vs/base/common/worker/*.nls.*.js",
+      "!src/renderer/vs/min-maps/**"
     ],
     "asarUnpack": [],
     "publish": {

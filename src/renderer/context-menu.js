@@ -95,6 +95,7 @@ const ContextMenuManager = (function () {
     menu.classList.remove("hidden");
     menu.style.left = x + "px";
     menu.style.top = y + "px";
+    menu.style.zIndex = (typeof FloatingUIManager !== "undefined") ? FloatingUIManager.getZIndex("CONTEXT_MENU") : 6000;
     requestAnimationFrame(() => {
       const rect = menu.getBoundingClientRect();
       if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 4) + "px";

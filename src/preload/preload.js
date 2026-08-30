@@ -181,6 +181,9 @@ contextBridge.exposeInMainWorld("lignisAPI", {
   terminalResize: (id, cols, rows) => ipcRenderer.invoke("terminal-resize", id, cols, rows),
   terminalKill: (id) => ipcRenderer.invoke("terminal-kill", id),
 
+  // Command Registry access — commands run in renderer context via window.CommandRegistry
+  commandRegistry: null,
+
   // Listen for events from main process
   on: (channel, callback) => {
     if (ALLOWED_RECEIVE_CHANNELS.includes(channel)) {

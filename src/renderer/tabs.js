@@ -218,6 +218,7 @@ const TabManager = (function () {
     menu.classList.remove("hidden");
     menu.style.left = e.clientX + "px";
     menu.style.top = e.clientY + "px";
+    menu.style.zIndex = (typeof FloatingUIManager !== "undefined") ? FloatingUIManager.getZIndex("CONTEXT_MENU") : 6000;
 
     requestAnimationFrame(() => {
       const rect = menu.getBoundingClientRect();

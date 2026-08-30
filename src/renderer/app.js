@@ -1,5 +1,5 @@
 // ========================================
-// Lignis v3.1.1 - Main Application Orchestrator
+// Lignis v3.3.0 - Main Application Orchestrator
 // ========================================
 
 const App = (function () {
@@ -512,6 +512,13 @@ const App = (function () {
       const icon = item.isDirectory ? "fa-solid fa-folder" : getFileIcon(item.name);
       el.innerHTML = `<i class="${icon} tree-icon"></i> <span>${escapeHtmlSafe(item.name)}</span>`;
 
+      // Context menu for tree items
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showTreeContextMenu(e, item);
+      });
+
       if (item.isDirectory) {
         let loaded = false;
         let childrenEl = null;
@@ -546,6 +553,56 @@ const App = (function () {
     });
   }
 
+  function showTreeContextMenu(e, item) {
+    const menu = document.getElementById("context-menu");
+    const itemsEl = document.getElementById("context-menu-items");
+    const isOpenFile = !item.isDirectory;
+
+    itemsEl.innerHTML = `
+      ${isOpenFile ? `<div class="menu-item" data-action="open-file"><span class="menu-item-label">Abrir arquivo</span></div>` : ""}
+      <div class="menu-item" data-action="copy-path"><span class="menu-item-label">Copiar caminho</span></div>
+      <div class="menu-item" data-action="copy-name"><span class="menu-item-label">Copiar nome</span></div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" data-action="refresh"><span class="menu-item-label">Atualizar</span></div>
+    `;
+
+    menu.classList.remove("hidden");
+    menu.style.left = e.clientX + "px";
+    menu.style.top = e.clientY + "px";
+    menu.style.zIndex = (typeof FloatingUIManager !== "undefined") ? FloatingUIManager.getZIndex("CONTEXT_MENU") : 6000;
+    requestAnimationFrame(() => {
+      const rect = menu.getBoundingClientRect();
+      if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 4) + "px";
+      if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 4) + "px";
+    });
+
+    const handler = (ev) => {
+      const mi = ev.target.closest(".menu-item");
+      if (!mi) return;
+      const action = mi.dataset.action;
+      hideAllMenus();
+      document.removeEventListener("click", handler);
+
+      switch (action) {
+        case "open-file": openFileByPath(item.path); break;
+        case "copy-path":
+          window.lignisAPI.clipboardWrite(item.path).then(() => showToast("Caminho copiado.", "success"));
+          break;
+        case "copy-name":
+          window.lignisAPI.clipboardWrite(item.name).then(() => showToast("Nome copiado.", "success"));
+          break;
+        case "refresh":
+          if (workspacePath) loadWorkspace(workspacePath);
+          break;
+      }
+    };
+    setTimeout(() => document.addEventListener("click", handler, { once: true }), 0);
+  }
+
+  function hideAllMenus() {
+    document.querySelectorAll(".menu-popup").forEach((m) => m.classList.add("hidden"));
+  }
+
   function getFileIcon(name) {
     const ext = name.split(".").pop().toLowerCase();
     const map = {
@@ -563,10 +620,12 @@ const App = (function () {
 
   // ─── Terminal ───────────────────────────
   let terminalVisible = false;
-  let terminalEl = null;
   let terminalInstance = null;
   let terminalId = null;
   let termFitAddon = null;
+  let termResizeObserver = null;
+  let termDataUnsub = null; // cleanup for terminal-data listener
+  let termLineBuffer = "";
 
   function toggleTerminal() {
     terminalVisible = !terminalVisible;
@@ -578,19 +637,22 @@ const App = (function () {
         termPanel.innerHTML = `
           <div class="terminal-header">
             <span class="terminal-title"><i class=\"fa-solid fa-terminal\"></i> Terminal</span>
-            <button id="terminal-close-btn" class="terminal-header-btn" title="Fechar terminal" aria-label="Fechar terminal"><i class=\"fa-solid fa-xmark\"></i></button>
+            <div class="terminal-header-actions">
+              <button id="terminal-clear-btn" class="terminal-header-btn" title="Limpar" aria-label="Limpar terminal"><i class=\"fa-solid fa-eraser\"></i></button>
+              <button id="terminal-close-btn" class="terminal-header-btn" title="Fechar terminal" aria-label="Fechar terminal"><i class=\"fa-solid fa-xmark\"></i></button>
+            </div>
           </div>
           <div id="terminal-container"></div>
         `;
         document.getElementById("editor-area").appendChild(termPanel);
-        termPanel.style.cssText = "height:200px;border-top:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;";
-        document.getElementById("terminal-container").style.cssText = "flex:1;overflow:hidden;background:#0d0d0d;";
         document.getElementById("terminal-close-btn").addEventListener("click", () => toggleTerminal());
+        document.getElementById("terminal-clear-btn").addEventListener("click", () => { if (terminalInstance) terminalInstance.clear(); });
       }
       termPanel.style.display = "";
       initTerminal();
     } else {
       if (termPanel) termPanel.style.display = "none";
+      if (termResizeObserver) { termResizeObserver.disconnect(); termResizeObserver = null; }
     }
     setTimeout(() => EditorManager.layout(), 50);
   }
@@ -598,14 +660,13 @@ const App = (function () {
   async function initTerminal() {
     const container = document.getElementById("terminal-container");
     if (!container) return;
+    if (terminalInstance) return; // Already initialized
 
     // Check if xterm.js is available
     if (typeof Terminal === "undefined") {
-      container.innerHTML = `<div style=\"padding:12px;color:#888;font-size:13px;\"><i class=\"fa-solid fa-triangle-exclamation\"></i> xterm.js não está disponível. Terminal desativado.</div>`;
+      container.innerHTML = `<div style="padding:12px;color:var(--text-muted);font-size:13px;"><i class="fa-solid fa-triangle-exclamation"></i> xterm.js não está disponível. Terminal desativado.</div>`;
       return;
     }
-
-    if (terminalInstance) return; // Already initialized
 
     terminalInstance = new Terminal({
       theme: {
@@ -622,7 +683,7 @@ const App = (function () {
       allowProposedApi: true,
     });
 
-    // Try to load FitAddon
+    // FitAddon for resize sync
     try {
       if (typeof FitAddon !== "undefined") {
         termFitAddon = new FitAddon.FitAddon();
@@ -635,30 +696,30 @@ const App = (function () {
       try { termFitAddon.fit(); } catch (_) {}
     }
 
-    // Intercept Lignis commands in terminal
-    let termLineBuffer = "";
+    // Intercept Lignis commands in terminal (only exact $namespace.command() patterns)
     terminalInstance.onData((data) => {
-      // Enter pressed — check for Lignis command
       if (data === "\r" || data === "\n") {
         const trimmed = termLineBuffer.trim();
-        if (trimmed.startsWith("$") && typeof LignisCommands !== "undefined" && LignisCommands.isEnabled()) {
-          const cmdRegex = /^\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?\([^)]*\)$/;
-          if (cmdRegex.test(trimmed)) {
-            const execResult = LignisCommands.execute(trimmed);
-            Promise.resolve(execResult).then(res => {
-              if (res.success) {
-                terminalInstance.write("\r\n" + String(res.value) + "\r\n");
-                termLineBuffer = "";
-                return;
-              }
-            });
-            termLineBuffer = "";
-            return; // Don't send to shell
+        // Only intercept exact Lignis command patterns, not $env:PATH etc.
+        if (typeof LignisCommands !== "undefined" && LignisCommands.isEnabled()) {
+          const parsed = (typeof CommandRegistry !== "undefined" && CommandRegistry.parse)
+            ? CommandRegistry.parse(trimmed) : null;
+          if (parsed) {
+            const execResult = (typeof CommandRegistry !== "undefined" && CommandRegistry.execute)
+              ? CommandRegistry.execute(parsed) : null;
+            if (execResult && execResult.success) {
+              terminalInstance.write("\r\n" + String(execResult.value) + "\r\n");
+              termLineBuffer = "";
+              return;
+            }
           }
         }
         termLineBuffer = "";
       } else if (data === "\x7f" || data === "\b") {
         termLineBuffer = termLineBuffer.slice(0, -1);
+      } else if (data === "\x03") {
+        // Ctrl+C: if selection, copy; otherwise interrupt is handled by xterm/shell
+        termLineBuffer = "";
       } else {
         termLineBuffer += data;
       }
@@ -667,33 +728,67 @@ const App = (function () {
       }
     });
 
-    // Create terminal in main process
+    // Create terminal in main process with workspace CWD
     const cwd = workspacePath || undefined;
     const cols = terminalInstance.cols || 80;
     const rows = terminalInstance.rows || 24;
     const result = await window.lignisAPI.terminalCreate({ cwd, cols, rows });
     if (result.success) {
       terminalId = result.data.id;
+      // Store unsub function to prevent listener stacking
+      termDataUnsub = window.lignisAPI.on("terminal-data", (data) => {
+        if (data.id === terminalId && terminalInstance) {
+          try { terminalInstance.write(data.data); } catch (_) {}
+        }
+      });
+      syncTerminalSize();
     } else {
-      terminalInstance.write(`\r\nErro ao criar terminal: ${result.error}\r\n`);
+      terminalInstance.write(`\r\n[Erro] Não foi possível iniciar o terminal.\r\n`);
     }
 
-    // Listen for data from terminal
-    window.lignisAPI.on("terminal-data", (data) => {
-      if (data.id === terminalId && terminalInstance) {
-        terminalInstance.write(data.data);
-      }
-    });
+    // ResizeObserver for automatic fit when panel size changes
+    const termPanel = document.getElementById("terminal-panel");
+    if (termPanel && typeof ResizeObserver !== "undefined") {
+      termResizeObserver = new ResizeObserver(() => {
+        if (termFitAddon && terminalVisible && terminalInstance) {
+          try { termFitAddon.fit(); syncTerminalSize(); } catch (_) {}
+        }
+      });
+      termResizeObserver.observe(termPanel);
+    }
 
     terminalInstance.focus();
   }
 
-  // Handle window resize for terminal fit
+  function syncTerminalSize() {
+    if (!termFitAddon || !terminalInstance || !terminalId) return;
+    try { termFitAddon.fit(); } catch (_) {}
+    const cols = terminalInstance.cols;
+    const rows = terminalInstance.rows;
+    window.lignisAPI.terminalResize(terminalId, cols, rows);
+  }
+
+  // Window resize fallback for terminal
   window.addEventListener("resize", () => {
     if (termFitAddon && terminalVisible) {
-      try { termFitAddon.fit(); } catch (_) {}
+      syncTerminalSize();
     }
   });
+
+  // ─── Kill all terminal processes on app close ───
+  function cleanupTerminals() {
+    if (terminalId) {
+      try { window.lignisAPI.terminalKill(terminalId); } catch (_) {}
+      terminalId = null;
+    }
+    if (termDataUnsub) { try { termDataUnsub(); } catch (_) {} termDataUnsub = null; }
+    if (termResizeObserver) { try { termResizeObserver.disconnect(); } catch (_) {} termResizeObserver = null; }
+    if (terminalInstance) { try { terminalInstance.dispose(); } catch (_) {} terminalInstance = null; }
+    termFitAddon = null;
+    termLineBuffer = "";
+  }
+  // Ensure terminals are cleaned up when window is closed
+  window.addEventListener("beforeunload", cleanupTerminals);
 
   // ─── Minimap Toggle ──────────────────────
   function toggleMinimap() {
@@ -1125,6 +1220,9 @@ const App = (function () {
       if (ctrl && !shift && !alt && e.key === "F2") { e.preventDefault(); TextTools.toggleBookmark(); return; }
 
       if (e.key === "Escape") {
+        // FloatingUIManager handles context menus, zoom picker, indentation picker, language picker
+        // via capture-phase listener. These additional handlers cover other overlays.
+        if (FloatingUIManager && FloatingUIManager.hasOpen()) return; // handled by FloatingUIManager
         if (htmlPreviewVisible) { toggleHtmlPreview(); return; }
         if (quickOpenVisible) { closeQuickOpen(); return; }
         if (CommandPalette.isOpened()) { CommandPalette.close(); return; }
@@ -1137,7 +1235,6 @@ const App = (function () {
         document.getElementById("about-overlay").classList.add("hidden");
         document.getElementById("stats-overlay").classList.add("hidden");
         document.getElementById("shortcuts-overlay").classList.add("hidden");
-        document.getElementById("language-overlay").classList.add("hidden");
       }
 
       if (ctrl && (e.key === "=" || e.key === "+")) {
@@ -1617,6 +1714,7 @@ const App = (function () {
     showStatistics, showShortcuts, showAbout, showToast,
     openContainingFolder, copyFilePath, copyFileName, copyDirectory,
     executeCommand, checkForUpdatesManual,
+    cleanupTerminals,
   };
 })();
 
