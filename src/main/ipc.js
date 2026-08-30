@@ -61,7 +61,10 @@ const ALLOWED_EXTENSIONS = [
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const WARN_FILE_SIZE = 10 * 1024 * 1024;
 
-function setupIpc(mainWindow, store) {
+let extensionManager = null;
+
+function setupIpc(mainWindow, store, extManager) {
+  extensionManager = extManager || null;
   ipcMain.handle("file-open-dialog", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: "Abrir arquivo",
@@ -671,5 +674,95 @@ function setupIpc(mainWindow, store) {
     return { success: true };
   });
 }
+
+// ── Extension IPC Handlers ──
+  ipcMain.handle("extension-discover", () => {
+    if (!extensionManager) return { success: false, error: "Extension system not initialized." };
+    return { success: true, data: extensionManager.discover() };
+  });
+
+  ipcMain.handle("extension-get-all", () => {
+    if (!extensionManager) return { success: true, data: [] };
+    return { success: true, data: extensionManager.getAllExtensions() };
+  });
+
+  ipcMain.handle("extension-get", (event, id) => {
+    if (!extensionManager) return { success: false };
+    const ext = extensionManager.getExtension(id);
+    return ext ? { success: true, data: ext } : { success: false, error: "Not found" };
+  });
+
+  ipcMain.handle("extension-activate", async (event, id) => {
+    if (!extensionManager) return { success: false, error: "Extension system not initialized." };
+    try {
+      await extensionManager.activate(id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-deactivate", async (event, id) => {
+    if (!extensionManager) return { success: false };
+    try {
+      await extensionManager.deactivate(id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-enable", async (event, id) => {
+    if (!extensionManager) return { success: false };
+    try {
+      await extensionManager.enable(id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-disable", async (event, id) => {
+    if (!extensionManager) return { success: false };
+    try {
+      await extensionManager.disable(id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-install-dialog", async () => {
+    if (!extensionManager) return { success: false };
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Instalar extensão",
+      properties: ["openDirectory"],
+      filters: [{ name: "Extensões Lignis", extensions: ["json"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, canceled: true };
+    }
+    try {
+      const ext = await extensionManager.installFromPath(result.filePaths[0]);
+      return { success: true, data: ext };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-uninstall", async (event, id) => {
+    if (!extensionManager) return { success: false };
+    try {
+      await extensionManager.uninstall(id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-get-commands", () => {
+    if (!extensionManager) return { success: true, data: [] };
+    return { success: true, data: extensionManager.getRegisteredCommands() };
+  });
 
 module.exports = { setupIpc };

@@ -1,5 +1,5 @@
 // ========================================
-// Lignis v3.3.0 - Main Application Orchestrator
+// Lignis v3.4.0 - Main Application Orchestrator
 // ========================================
 
 const App = (function () {

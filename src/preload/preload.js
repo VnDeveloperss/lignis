@@ -71,6 +71,18 @@ const ALLOWED_RECEIVE_CHANNELS = [
   "update-available",
   "update-progress",
   "update-downloaded",
+  // Extension channels
+  "ext-state-changed",
+  "ext-command-registered",
+  "ext-inline-command-registered",
+  "ext-statusbar-show",
+  "ext-statusbar-hide",
+  "ext-statusbar-update",
+  "ext-statusbar-remove",
+  "ext-show-info",
+  "ext-show-warn",
+  "ext-show-error",
+  "ext-show-progress",
 ];
 
 // Whitelist of allowed invoke channels (renderer -> main)
@@ -112,6 +124,31 @@ const ALLOWED_INVOKE_CHANNELS = [
   "terminal-write",
   "terminal-resize",
   "terminal-kill",
+  // Extension channels
+  "extension-discover",
+  "extension-install",
+  "extension-uninstall",
+  "extension-activate",
+  "extension-deactivate",
+  "extension-enable",
+  "extension-disable",
+  "extension-get-all",
+  "extension-get",
+  "extension-install-dialog",
+  "ext-show-quickpick",
+  "ext-show-input",
+  "ext-execute-command",
+  "ext-get-active-editor",
+  "ext-get-workspace",
+  "ext-get-configuration",
+  "ext-set-decorations",
+  "ext-create-terminal",
+  "ext-terminal-send",
+  "ext-register-completion",
+  "ext-register-hover",
+  "ext-find-files",
+  "ext-open-document",
+  "extension-get-commands",
 ];
 
 contextBridge.exposeInMainWorld("lignisAPI", {
@@ -183,6 +220,19 @@ contextBridge.exposeInMainWorld("lignisAPI", {
 
   // Command Registry access — commands run in renderer context via window.CommandRegistry
   commandRegistry: null,
+
+  // Extension APIs
+  extensionDiscover: () => ipcRenderer.invoke("extension-discover"),
+  extensionInstall: (path) => ipcRenderer.invoke("extension-install", path),
+  extensionUninstall: (id) => ipcRenderer.invoke("extension-uninstall", id),
+  extensionActivate: (id) => ipcRenderer.invoke("extension-activate", id),
+  extensionDeactivate: (id) => ipcRenderer.invoke("extension-deactivate", id),
+  extensionEnable: (id) => ipcRenderer.invoke("extension-enable", id),
+  extensionDisable: (id) => ipcRenderer.invoke("extension-disable", id),
+  extensionGetAll: () => ipcRenderer.invoke("extension-get-all"),
+  extensionGet: (id) => ipcRenderer.invoke("extension-get", id),
+  extensionInstallDialog: () => ipcRenderer.invoke("extension-install-dialog"),
+  extensionGetCommands: () => ipcRenderer.invoke("extension-get-commands"),
 
   // Listen for events from main process
   on: (channel, callback) => {

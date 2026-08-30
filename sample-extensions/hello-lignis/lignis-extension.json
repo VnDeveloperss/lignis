@@ -1,0 +1,13 @@
+{
+  "name": "hello-lignis",
+  "displayName": "Hello Lignis",
+  "version": "1.0.0",
+  "publisher": "lignis",
+  "description": "Exemplo de extensão para o Lignis. Registra um comando, um item na barra de status e um comando inline.",
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "permissions": ["commands", "statusbar", "workspace.read"],
+  "engines": {
+    "lignis": ">=3.4.0"
+  }
+}

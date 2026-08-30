@@ -1,190 +1,70 @@
 # Changelog — Lignis
 
-## Versão 3.3.0
+## Versão 3.4.0
 
-### Correções
-- **Corrigido memory leak no terminal**: Listener `terminal-data` era adicionado a cada chamada de `initTerminal()`. Agora o listener é armazenado e limpo adequadamente.
-- **Corrigida detecção de shell no Windows**: Terminal agora tenta PowerShell 7+, depois Windows PowerShell, depois CMD, com resolução via `where`.
-- **Corrigido comportamento de seleção/multicursor**: Removido `columnSelection: true` que causava multicursor acidental. `multiCursorModifier` alterado para `alt` (clique+alt cria novo cursor, não ctrl).
-- **Corrigido preload.js**: Removido `require()` quebrado que tentava carregar command-registry no contexto de preload (incompatível com contextBridge).
-- **Corrigido Escape em popups**: Hierarquia de Escape centralizada via FloatingUIManager — context menus, zoom picker, indent picker e language picker fecham corretamente.
-- **Corrigido click-outside**: Popups (zoom, indentação, linguagem) agora fecham ao clicar fora.
-- **Corrigidas traduções**: Adicionado campo de busca ao seletor de linguagem. Keys i18n nunca mais são exibidas ao usuário.
+### Novidades
+- **Sistema de Extensões do Lignis**: Arquitetura profissional de extensões com lifecycle, permissões e API documentada.
+- **Extension API v1.0**: APIs para `window`, `commands`, `workspace`, `editor`, `terminal`, `inlineCommands`, `fs`, `languages`, `statusbar`.
+- **Permissões de Extensões**: Cada extensão declara permissões necessárias. Permissões sensíveis são transparentes ao usuário.
+- **Activation Events**: Extensões podem ser ativadas sob demanda (lazy activation) para não afetar a performance.
+- **Extension UI**: Painel de extensões com ações: Instalar, Ativar, Desativar, Desinstalar.
+- **Instalação de Extensões Locais**: Suporte a instalação de extensões a partir de diretórios locais.
+- **Lignis Commands 2.0**: Comandos inline registrados por extensões com namespace próprio.
 
 ### Melhorias
-- **FloatingUIManager**: Sistema centralizado de gerenciamento de overlays com z-index consistente, click-outside, Escape e restore de foco.
-- **Explorer com context menu**: Botão direito em arquivos/pastas mostra opções: Abrir, Copiar caminho, Copiar nome, Atualizar.
-- **Terminal melhorado**: Botão de limpar adicionado ao header. ResizeObserver sincroniza tamanho automaticamente. Cabeçalho do terminal com ações agrupadas.
-- **Cleanup de terminais**: Ao fechar o Lignis, todos os processos filhos do terminal são encerrados (via `beforeunload` e `before-quit`).
-- **Z-index escala**: Escala consistente de z-index para todos os overlays, menus e modais.
-- **CSS refinado**: Estilos de terminal panel, context menu e language picker aprimorados.
-- **Seletor de linguagem compacto**: Modal substituído por popover compacto com busca integrada.
+- Caminho do ícone do aplicativo verificado antes de carregar (evita erro se ausente).
+- Diagnóstico de caminhos no processo principal para facilitar resolução de problemas.
+- Canal IPC de extensões adicionado ao preload com whitelist de segurança.
+- Channels de extensão segregados dos canais da aplicação principal.
+- Lignis API exposta via `lignisAPI.extensionActivate`, `extensionDeactivate`, etc.
 
-### Segurança
-- Nenhum `eval()` ou `new Function()`.
-- Terminal executa apenas com permissões do usuário.
-- Preload não expõe módulos Node.js ao renderer.
-- Processos filhos do terminal são encerrados no fechamento.
+### Correções
+- Corrigido erro `net::ERR_FILE_NOT_FOUND` causado por `locales/pt-BR.js` em diretório incorreto.
+- Arquivo de localização movido para `src/renderer/locales/` onde o protocolo `lignis://` consegue resolvê-lo.
+- Ícone do aplicativo verificado com `fs.existsSync()` antes de configurar no BrowserWindow.
 
-## Em desenvolvimento (pós 3.1.1)
+## Versão 3.3.0
 
-> Nota: as correções listadas na versão 3.1.1 abaixo foram aplicadas no modo "band-aid" e **substituídas** pelas correções definitivas das Fases 2 e 3 a seguir.
+### Novidades
+- FloatingUIManager: sistema centralizado de overlays com click-outside, Escape e z-index.
+- Explorer context menu: Abrir, Copiar caminho, Copiar nome, Atualizar.
+- Language picker com busca de texto.
+- Terminal com cleanup de processos e ResizeObserver.
+- Comandos Lignis executáveis no terminal e auto-execução em Plain Text.
 
-### Fase 2 — Estabilização da inicialização
-- **Causa raiz do loader infinito corrigida**: Havia um erro de sintaxe em `app.js` (string de ícone com aspas quebradas) que impedia o parse do arquivo inteiro e, portanto, a inicialização do Monaco. Com a causa real resolvida, os watchdogs e timeouts artificiais foram removidos.
-- **Inicialização única do Monaco**: `EditorManager.init()` agora é *single-flight* (a mesma Promise é retornada em chamadas simultâneas) e falhas são reportadas pelo *errback* real do loader AMD — removido o timeout falso de 20s.
-- **Inicialização do app sem watchdog global**: `App.start()` chama `EditorManager.init()` uma única vez e aguarda a Promise real; removidos o watchdog de 5s e o timeout artificial de 3s da detecção de plataforma.
-- **Configurações sem timeout fake**: Removido o timeout de 5s do carregamento via IPC em `settings.js`.
-- **Atualização pós download mais segura**: `update-install` agora instala no evento `closed` da janela (com flag para evitar dupla instalação), em vez de espera fixa de 2s.
-- **Menu Exibir → Tema funcionando**: canal `set-theme` adicionado à whitelist de `ipcRenderer` do preload.
+### Melhorias
+- Seleção de texto corrigida: `columnSelection: false`, `multiCursorModifier: "alt"`.
+- Shell detection no Windows: PowerShell 7+ > Windows PowerShell > CMD.
+- Escape key hierarchy para popups e overlays.
+- Z-index scale consistente no CSS.
 
-### Fase 3 — Higiene e operação totalmente offline
-- **Layout padrão `vs/` restaurado para o Monaco**: A pasta `src/renderer/monaco` (achatada) virou `src/renderer/vs`, o layout canônico que o Monaco espera internamente. Isso corrige a falha de carregamento das strings de idioma nos workers web (`Failed trying to load default language strings [DOMException]`), que ocorria porque o worker resolvia módulos em `vs/...` fisicamente.
-- **Carregamento de libs UMD antes do AMD**: `xterm`, `marked` e `DOMPurify` são carregados **antes** do `loader.js` do Monaco, evitando que seus factories UMD caiam no `define` global do AMD — eliminando os erros "Can only have one anonymous define call per script file" e "Duplicate definition of module".
-- **Loader AMD do Monaco restaurado ao original**: Removido o patch anterior que forçava `define` global (36 patches do 3d47477), agora desnecessário e incorreto.
-- **Protocolo `lignis://` para toda a interface**: `loadURL("lignis://app/index.html")` com `protocol.handle` + `net.fetch`, CSP atualizada (sem CDN, sem `file:`), permitindo caminhos absolutos estáveis (`lignis://app/vs/...`) para Monaco e workers em build empacotado.
-- **Dependências de renderer vendored localmente**: `@xterm/xterm`, `@xterm/addon-fit`, `marked`, `dompurify` copiados para `src/renderer/vendor/` — sem CDN, 100% offline.
-- **Canais IPC mortos removidos**: limpeza de `menu-close-right`, `menu-word-count`, `menu-toggle-comment`, `check-unsaved-before-close`, `window-fullscreen-changed` (preload e main).
+### Correções
+- Memory leak no terminal (listener stacking a cada initTerminal).
+- Preload.js quebrado com `require()` no contexto de preload.
+- Inconsistentes de Escape e click-outside em popups.
 
-### Fase 4 — Terminal real (PTY opcional + fallback robusto)
-- **Terminal com PTY real quando disponível**: O `node-pty` agora é uma dependência opcional — se instalado (requer toolchain C++ e `npm rebuild node-pty` para o Electron), `terminal-create` usa um pseudo-terminal de verdade e `terminal-resize` redimensiona o processo de fato.
-- **Fallback spawn muito mais robusto**: sem node-pty, o terminal continua funcional via pipes com `windowsHide`, decodificação UTF-8 segura por chunks (`StringDecoder`, sem corromper textos multibyte) e tratamento de `error`/`close`/stdin.
-- **Resize sincronizado com o renderer**: após `fit()` do xterm (abertura e redimensionamento de janela), o `terminal-resize` é enviado ao processo — o PTY real acompanha a janela.
-- **Config de build atualizada**: exclusões de arquivos no `electron-builder` apontam para `vs/` (após o rename do Monaco) e `node-pty` registrado como opcional no `package.json`/lockfile.
+## Versão 3.1.2
 
----
+### Correções
+- Loader infinito eliminado — overlay de loading removido, app inicia imediatamente.
+- Monaco carrega em background sem bloquear a abertura da janela.
+
+## Versão 3.1.1
+
+### Correções
+- Causa raiz do loader infinito: Monaco AMD loader não expunha `window.define` em Electron Renderer.
+- Timeout IPC adicionado para Settings e Platform para evitar travamento.
+- Watchdog global de 5 segundos como safety net.
 
 ## Versão 3.1.0
 
 ### Novidades
-- **Terminal integrado**: Terminal real integrado ao editor, acessível via Ctrl+` ou Exibir → Terminal.
-- **Explorador de pastas funcional**: Abra e navegue por pastas reais com árvore de arquivos, abrindo arquivos com um clique.
-- **Abrir pasta via menu**: Adicionado "Abrir pasta..." no menu Arquivo (Ctrl+Shift+O).
-- **Auto-execução de comandos**: Digite comandos do Lignis (como `$app.version()`) em modo Texto simples e pressione Espaço ou Enter para executar automaticamente.
-- **Comandos no terminal**: Comandos do Lignis são reconhecidos no terminal integrado e executados localmente antes de serem enviados ao shell.
-- **Atalho do terminal**: Ctrl+` para abrir/fechar o terminal integrado.
+- Janela nativa do sistema operacional restaurada (frame: true).
+- Menu nativo: Arquivo, Editar, Pesquisar, Formatar, Exibir, Configurações, Ajuda.
+- Explorer funcional com árvore lazy-loading.
+- Terminal integrado com xterm.js e shell real.
+- Comandos Lignis auto-executáveis em Plain Text.
 
 ### Melhorias
-- **Janela nativa do sistema**: Controles customizados de minimizar/maximizar/fechar removidos. O Lignis agora utiliza os controles nativos do sistema operacional.
-- **Menus restaurados**: Menus Arquivo, Editar, Pesquisar, Formatar, Exibir, Configurações e Ajuda agora funcionam corretamente com a janela nativa.
-- **Ícone dinâmico por tipo de arquivo**: Arquivos no explorador exibem ícones específicos por linguagem (JS, TS, Python, etc.).
-- **Tratamento de traduções ausentes**: Fallbacks garante que nenhum texto interno apareça ao usuário quando uma tradução não estiver disponível.
-
-### Correções
-- **Corrigida referência à titlebar removida**: Removidas referências a elementos HTML que não existem mais.
-- **Corrigida variável duplicada**: Removida declaração duplicada de workspacePath que poderia causar erro de inicialização.
-- **Corrigido carregamento duplicado de xterm.js**: Removido comentário e script duplicados.
-- **Adicionada chave de tradução faltante**: "editorCtx.toggleComment" adicionada ao locale pt-BR.
-
----
-
-## Versão 3.0.0
-
-### Novidades
-- **Nova identidade**: NovaPad agora é **Lignis** — um editor de texto e código desktop moderno, rápido e extensível.
-- **Pré-visualização HTML integrada**: Ao abrir um arquivo `.html` ou `.htm`, ative a pré-visualização ao vivo com sandbox de segurança.
-- **Sistema de comandos inline**: Execute comandos úteis diretamente no editor com `$` (ex: `$local.datetime()`, `$uuid()`).
-- **Comando de pré-visualização HTML**: Ative/desative a pré-visualização pela paleta de comandos ou menu Exibir.
-
-### Novidades (atualização)
-- **Sistema de atualização automática**: O Lignis verifica novas versões em background e permite baixar e instalar diretamente pelo aplicativo.
-- **Monaco Editor instalado localmente**: O editor não depende mais de CDN para funcionar. Funciona completamente offline.
-- **Scripts de release**: Comandos `npm run release:patch`, `npm run release:minor` e `npm run release:major` para publicar versões.
-- **GitHub Actions**: Workflow automático para build e publicação de releases no GitHub.
-- **Repositório preparado para publicação**: `.gitignore`, auditoria de segurança, e documentação interna incluídos.
-
-### Melhorias
-- **Inicialização do editor completamente reescrita**: O processo de abertura agora é real, com tratamento de erros, timeouts e estados claros.
-- **Carregamento mais rápido e confiável**: Etapas de inicialização são sequenciais e verificáveis — não mais espera indefinida.
-- **Tela de erro recuperável**: Se o editor não puder iniciar, uma tela com opção de tentar novamente ou fechar é exibida.
-- **Migração segura de dados**: Configurações do NovaPad são migradas automaticamente para o novo formato.
-- **Pré-visualização HTML isolada**: O iframe de preview usa sandbox com permissões mínimas para máxima segurança.
-- **Autocomplete HTML melhorado**: Tags auto-close e linked editing habilitados para HTML.
-- **Suporte a mais linguagens**: Melhorias gerais em syntax highlighting e autocomplete para todas as linguagens suportadas.
-- **Comportamento offline**: O aplicativo funciona corretamente sem conexão à internet.
-- **Dependências opcionais não bloqueiam**: Bibliotecas de animação e preview são carregadas de forma assíncrona.
-
-### Correções
-- **Corrigido problema que poderia manter o aplicativo preso na tela de carregamento**: O loader agora reflete o estado real da inicialização.
-- **Corrigida inicialização do editor em ambientes sem internet**: Monaco tem timeout e fallback apropriados.
-- **Corrigida exibição de ícones em toda a interface**: Font Awesome agora é carregado localmente, eliminando quadrados vazios causados por restrições de segurança de rede.
-- **Corrigidos ícones em tema claro e escuro**: Fontes de ícones garantidas em ambos os temas com configuração explícita de font-family.
-- **Corrigidas inconsistências na restauração de sessões**: Sessões com arquivos inexistente são tratadas corretamente.
-- **Corrigidos problemas visuais na interface**: Ajustes de layout e estilos para maior consistência.
-- **Corrigidos nomes de tema**: Nomes internos dos temas foram padronizados.
-
-### Segurança
-- **Pré-visualização HTML com sandbox restritivo**: Scripts do usuário rodam isolados do restante da aplicação.
-- **Scripts bloqueados por padrão no preview HTML**: Opção disponível para ativar quando necessário.
-- **Comandos inline sem execução de código arbitrário**: Parser determinístico sem `eval()` ou `new Function()`.
-- **Reforçados controles de acesso a arquivos e comunicação interna**.
-
-### Desempenho
-- **Inicialização otimizada**: Etapas críticas são executadas em paralelo quando possível.
-- **Preview HTML com debounce**: Atualizações do preview são espaçadas para evitar custo excessivo.
-- **Gerenciamento de modelos do editor**: Cada documento possui modelo próprio, evitando recriação desnecessária.
-
----
-
-## Versão 2.6.0
-
-### Novidades
-- Sistema de comandos inline seguros digitados diretamente no editor
-- Ajuda → Comandos com pesquisa, categorias, cópia e inserção
-- Execução via menu de contexto
-
-### Melhorias
-- Substituição completa de ícones por Font Awesome 6.5.1
-- Configurações para comandos (ativar/desativar, autocomplete, destaques)
-- Paleta de comandos expandida
-
-### Correções
-- Corrigidos ícones que apareciam como quadrados vazios
-- Corrigidos ícones dinâmicos ausentes
-- Corrigida compatibilidade com tema claro/escuro
-
-### Segurança
-- Parser de comandos sem eval() ou new Function()
-- Comandos limitados a operações locais seguras
-
-## Versão 2.5.1
-
-### Correções
-- Removida duplicação dos controles da janela
-- Corrigido maximizar/restaurar
-- Corrigido fechamento com documentos não salvos
-
-### Melhorias
-- Barra superior refinada
-- Sistema centralizado de ícones
-
-## Versão 2.5.0
-
-### Novidades
-- Sidebar/Explorador com Ctrl+B
-- Quick Open com Ctrl+P
-- Minimap toggle
-- Bookmarks com Ctrl+F2 / F2 / Shift+F2
-- Próxima ocorrência com Ctrl+D
-- Codificação Base64, URL, HTML escape
-- Inserir data, hora, ISO 8601, copiar UUID
-- Ordenação natural
-- Zoom picker e indentation picker na status bar
-- Design tokens CSS
-- Anime.js para microanimações
-- 11 novas configurações do editor
-
-## Versão 2.0.0
-
-### Novidades
-- Restauração de sessão
-- Salvamento atômico
-- Aba fixada (pin)
-- Modo somente leitura
-- Reordenação de abas
-- Estatísticas do documento
-- Autosave
-- Tela de atalhos
-- Seletor de linguagem
-- Fuzzy search na paleta de comandos
-- Interface 100% em PT-BR
+- i18n: fallback comprehensivo para chaves não encontradas.
+- CSP atualizado para xterm.js e Monaco workers.

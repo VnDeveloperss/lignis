@@ -4,6 +4,7 @@ const fs = require("fs");
 const { pathToFileURL } = require("url");
 const { setupIpc } = require("./ipc");
 const { buildMenu } = require("./menu");
+const { ExtensionManager } = require("./extension-manager");
 const Store = require("electron-store");
 const { autoUpdater } = require("electron-updater");
 
@@ -18,6 +19,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const rendererRoot = path.join(__dirname, "..", "renderer");
+console.log("[Path] rendererRoot:", rendererRoot);
+console.log("[Path] exists:", fs.existsSync(rendererRoot));
 
 function registerLignisProtocol() {
   protocol.handle("lignis", (request) => {
@@ -115,7 +118,7 @@ function createWindow() {
     minWidth: 600,
     minHeight: 400,
     title: "Lignis",
-    icon: path.join(__dirname, "..", "assets", "icons", "icon.png"),
+    icon: (() => { const i = path.join(__dirname, "..", "assets", "icons", "icon.png"); return fs.existsSync(i) ? i : undefined; })(),
     backgroundColor: store.get("theme") === "dark" ? "#171821" : "#ffffff",
     webPreferences: {
       contextIsolation: true,
@@ -161,13 +164,21 @@ if (!gotTheLock) {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerLignisProtocol();
   createWindow();
-  setupIpc(mainWindow, store);
+
+  // Initialize extension manager
+  const extensionManager = new ExtensionManager(mainWindow);
+  setupIpc(mainWindow, store, extensionManager);
 
   const menu = buildMenu(mainWindow, store);
   Menu.setApplicationMenu(menu);
+
+  // Load extensions (async, non-blocking)
+  extensionManager.loadAll().catch((err) => {
+    console.error("[Extensions] Failed to load extensions:", err.message);
+  });
 
   // ─── Auto Update: check for updates after app is ready ──
   // Do NOT block startup — check in background
