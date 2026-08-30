@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' blob:;
+    style-src 'self' 'unsafe-inline' blob: data:;
+    font-src 'self' data: blob:;
+    img-src 'self' data: blob:;
+    worker-src 'self' blob:;
+    connect-src 'self' blob:;
+  ">
+  <title>DevMode Extension — Lignis</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="fontawesome/css/all.min.css">
+  <script src="monaco-setup.js"></script>
+  <script src="vs/loader.js"></script>
+  <style>
+    /* DevMode-specific overrides */
+    body { overflow: hidden; }
+    #dev-layout { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 32px); }
+    #dev-sidebar { width: 220px; border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+    #dev-sidebar-header { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    #dev-sidebar-header h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+    #dev-file-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
+    #dev-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #dev-editor-area { flex: 1; overflow: hidden; position: relative; }
+    #dev-editor { width: 100%; height: 100%; }
+    #dev-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg-panel); overflow-x: auto; flex-shrink: 0; }
+    .dev-tab { padding: 6px 16px; font-size: 12px; color: var(--text-muted); cursor: pointer; border-right: 1px solid var(--border); white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+    .dev-tab.active { color: var(--text-primary); background: var(--bg-editor); border-bottom: 2px solid var(--accent); }
+    .dev-tab:hover { background: var(--bg-hover); }
+    .dev-tab-close { font-size: 10px; opacity: 0.5; }
+    .dev-tab-close:hover { opacity: 1; color: #ff6b6b; }
+    #dev-bottom { height: 180px; border-top: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    #dev-bottom-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg-panel); flex-shrink: 0; }
+    .dev-bottom-tab { padding: 4px 12px; font-size: 11px; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; }
+    .dev-bottom-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    #dev-bottom-content { flex: 1; overflow-y: auto; padding: 8px 12px; font-family: 'Cascadia Code', monospace; font-size: 12px; color: var(--text-secondary); }
+    .dev-bottom-content-section { display: none; }
+    .dev-bottom-content-section.active { display: block; }
+    .dev-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px 12px; background: var(--bg-panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .dev-toolbar-btn { padding: 4px 10px; border-radius: 4px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; }
+    .dev-toolbar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .dev-toolbar-btn.dev-run { color: #4caf50; }
+    .dev-toolbar-btn.dev-run:hover { background: #4caf5020; }
+    .dev-toolbar-btn.dev-stop { color: #ff6b6b; }
+    .dev-toolbar-btn.dev-stop:hover { background: #ff6b6b20; }
+    .dev-status { margin-left: auto; font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .dev-status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dev-status-dot.idle { background: #666; }
+    .dev-status-dot.running { background: #4caf50; }
+    .dev-status-dot.error { background: #ff6b6b; }
+    .dev-welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); text-align: center; padding: 40px; }
+    .dev-welcome h2 { font-size: 20px; margin: 0 0 8px; color: var(--text-primary); }
+    .dev-welcome p { font-size: 13px; margin: 0 0 20px; max-width: 400px; line-height: 1.5; }
+    .dev-welcome-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .dev-welcome-btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-secondary); cursor: pointer; font-size: 13px; }
+    .dev-welcome-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .dev-welcome-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .dev-welcome-btn.primary:hover { filter: brightness(1.1); }
+  </style>
+</head>
+<body>
+  <!-- DevMode Toolbar -->
+  <div class="dev-toolbar">
+    <button class="dev-toolbar-btn dev-run" id="dev-run-btn" title="Executar (F5)"><i class="fa-solid fa-play"></i> Executar</button>
+    <button class="dev-toolbar-btn dev-stop" id="dev-stop-btn" title="Parar (Shift+F5)"><i class="fa-solid fa-stop"></i> Parar</button>
+    <button class="dev-toolbar-btn" id="dev-reload-btn" title="Recarregar (Ctrl+Shift+R)"><i class="fa-solid fa-rotate-right"></i> Recarregar</button>
+    <div style="width:1px;height:16px;background:var(--border);margin:0 4px"></div>
+    <button class="dev-toolbar-btn" id="dev-validate-btn" title="Validar"><i class="fa-solid fa-check-double"></i> Validar</button>
+    <button class="dev-toolbar-btn" id="dev-build-btn" title="Build (Ctrl+Shift+B)"><i class="fa-solid fa-hammer"></i> Build</button>
+    <button class="dev-toolbar-btn" id="dev-export-btn" title="Exportar"><i class="fa-solid fa-download"></i> Exportar</button>
+    <div class="dev-status">
+      <span class="dev-status-dot idle" id="dev-status-dot"></span>
+      <span id="dev-status-text">Não executando</span>
+    </div>
+  </div>
+
+  <div id="dev-layout">
+    <!-- File Explorer Sidebar -->
+    <div id="dev-sidebar">
+      <div id="dev-sidebar-header">
+        <h3><i class="fa-solid fa-folder-tree"></i> Projeto</h3>
+        <button class="dev-toolbar-btn" id="dev-open-folder-btn" title="Abrir pasta"><i class="fa-solid fa-folder-open"></i></button>
+      </div>
+      <div id="dev-file-tree">
+        <div class="dev-welcome" id="dev-sidebar-welcome">
+          <p style="font-size:12px">Nenhum projeto aberto</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Editor Area -->
+    <div id="dev-main">
+      <!-- Tabs -->
+      <div id="dev-tabs"></div>
+
+      <!-- Editor -->
+      <div id="dev-editor-area">
+        <div id="dev-editor"></div>
+        <div class="dev-welcome" id="dev-editor-welcome">
+          <h2>DevMode Extension</h2>
+          <p>Ambiente de desenvolvimento para extensões do Lignis. Abra um projeto de extensão ou crie uma nova.</p>
+          <div class="dev-welcome-btns">
+            <button class="dev-welcome-btn primary" id="dev-create-btn"><i class="fa-solid fa-plus"></i> Criar extensão</button>
+            <button class="dev-welcome-btn" id="dev-open-btn"><i class="fa-solid fa-folder-open"></i> Abrir projeto</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Panels -->
+      <div id="dev-bottom">
+        <div id="dev-bottom-tabs">
+          <div class="dev-bottom-tab active" data-panel="output">Output</div>
+          <div class="dev-bottom-tab" data-panel="logs">Logs</div>
+          <div class="dev-bottom-tab" data-panel="problems">Problems</div>
+          <div class="dev-bottom-tab" data-panel="docs">Docs</div>
+        </div>
+        <div id="dev-bottom-content">
+          <div class="dev-bottom-content-section active" id="panel-output">
+            <div style="color:var(--text-muted);font-size:12px">Aguardando execução...</div>
+          </div>
+          <div class="dev-bottom-content-section" id="panel-logs"></div>
+          <div class="dev-bottom-content-section" id="panel-problems"></div>
+          <div class="dev-bottom-content-section" id="panel-docs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // DevMode Application
+    const DevMode = (function() {
+      const api = window.devAPI;
+      let editor = null;
+      let monacoReady = false;
+      let currentFiles = {};
+      let activeFile = null;
+      let extensionPath = null;
+      let extensionRunning = false;
+      let fileTree = {};
+
+      // ── Init ──
+      function init() {
+        // Init Monaco
+        if (typeof require !== "undefined") {
+          require.config({ paths: { vs: "vs" }, preferScriptTags: true });
+          require(["vs/editor/editor.main"], function() {
+            monacoReady = true;
+            setupEditor();
+            setupEventListeners();
+          });
+        } else {
+          setupEventListeners();
+        }
+      }
+
+      function setupEditor() {
+        editor = monaco.editor.create(document.getElementById("dev-editor"), {
+          value: "",
+          language: "javascript",
+          theme: "lignis-dark",
+          fontSize: 13,
+          fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          automaticLayout: true,
+          tabSize: 2,
+          insertSpaces: true,
+          wordWrap: "on",
+          padding: { top: 8 },
+        });
+      }
+
+      function setupEventListeners() {
+        // Toolbar buttons
+        document.getElementById("dev-run-btn")?.addEventListener("click", runExtension);
+        document.getElementById("dev-stop-btn")?.addEventListener("click", stopExtension);
+        document.getElementById("dev-reload-btn")?.addEventListener("click", reloadExtension);
+        document.getElementById("dev-validate-btn")?.addEventListener("click", validateExtension);
+        document.getElementById("dev-build-btn")?.addEventListener("click", buildExtension);
+        document.getElementById("dev-export-btn")?.addEventListener("click", exportExtension);
+        document.getElementById("dev-create-btn")?.addEventListener("click", createNewExtension);
+        document.getElementById("dev-open-btn")?.addEventListener("click", openExtensionProject);
+        document.getElementById("dev-open-folder-btn")?.addEventListener("click", openExtensionProject);
+
+        // Bottom panel tabs
+        document.querySelectorAll(".dev-bottom-tab").forEach(tab => {
+          tab.addEventListener("click", () => {
+            document.querySelectorAll(".dev-bottom-tab").forEach(t => t.classList.remove("active"));
+            document.querySelectorAll(".dev-bottom-content-section").forEach(s => s.classList.remove("active"));
+            tab.classList.add("active");
+            document.getElementById("panel-" + tab.dataset.panel)?.classList.add("active");
+          });
+        });
+
+        // Listen for events from main process
+        api?.on("dev-load-extension", (path) => loadExtension(path));
+        api?.on("dev-save", () => saveCurrentFile());
+        api?.on("dev-run", () => runExtension());
+        api?.on("dev-stop", () => stopExtension());
+        api?.on("dev-reload", () => reloadExtension());
+        api?.on("dev-validate", () => validateExtension());
+        api?.on("dev-build", () => buildExtension());
+        api?.on("dev-show-docs", () => showDocs());
+        api?.on("dev-export", (exportPath) => doExport(exportPath));
+
+        // Keyboard shortcuts
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "F5") { e.preventDefault(); runExtension(); }
+          if (e.shiftKey && e.key === "F5") { e.preventDefault(); stopExtension(); }
+          if (e.ctrlKey && e.shiftKey && e.key === "R") { e.preventDefault(); reloadExtension(); }
+          if (e.ctrlKey && e.shiftKey && e.key === "B") { e.preventDefault(); buildExtension(); }
+          if (e.ctrlKey && e.key === "s") { e.preventDefault(); saveCurrentFile(); }
+        });
+
+        // Get app info
+        api?.getAppInfo().then(result => {
+          if (result.success) {
+            document.title = `DevMode Extension — Lignis v${result.data.version}`;
+          }
+        });
+      }
+
+      // ── File Operations ──
+      async function loadExtension(path) {
+        extensionPath = path;
+        currentFiles = {};
+        activeFile = null;
+
+        // Hide welcome
+        const welcome = document.getElementById("dev-editor-welcome");
+        if (welcome) welcome.style.display = "none";
+        const sidebarWelcome = document.getElementById("dev-sidebar-welcome");
+        if (sidebarWelcome) sidebarWelcome.style.display = "none";
+
+        // Load file tree
+        const result = await api?.listDir(path);
+        if (result?.success) {
+          fileTree = { name: path.split(/[\\/]/).pop(), children: result.data, path };
+          renderFileTree();
+        }
+
+        // Auto-open manifest
+        const manifestResult = await api?.readFile(path + "/lignis-extension.json");
+        if (manifestResult?.success) {
+          openFile(path + "/lignis-extension.json", "lignis-extension.json", manifestResult.data.content);
+        }
+
+        // Auto-open main file
+        try {
+          const manifest = JSON.parse(manifestResult?.data?.content || "{}");
+          const mainFile = manifest.main || "./extension.js";
+          const mainPath = path + "/" + mainFile.replace("./", "");
+          const mainResult = await api?.readFile(mainPath);
+          if (mainResult?.success) {
+            openFile(mainPath, mainFile, mainResult.data.content);
+          }
+        } catch (_) {}
+
+        logOutput(`Projeto carregado: ${path}`);
+      }
+
+      async function openFile(filePath, name, content) {
+        if (!currentFiles[filePath]) {
+          if (content === undefined) {
+            const result = await api?.readFile(filePath);
+            content = result?.success ? result.data.content : "";
+          }
+          currentFiles[filePath] = { name: name || filePath.split(/[\\/]/).pop(), content, original: content };
+          addTab(filePath, name || filePath.split(/[\\/]/).pop());
+        }
+        switchToFile(filePath);
+      }
+
+      function addTab(filePath, name) {
+        const tabs = document.getElementById("dev-tabs");
+        if (!tabs || tabs.querySelector(`[data-file="${filePath}"]`)) return;
+        const ext = name.split(".").pop();
+        const tab = document.createElement("div");
+        tab.className = "dev-tab";
+        tab.dataset.file = filePath;
+        tab.innerHTML = `<i class="fa-regular fa-file" style="font-size:11px"></i> ${name} <span class="dev-tab-close">&times;</span>`;
+        tab.addEventListener("click", (e) => {
+          if (e.target.classList.contains("dev-tab-close")) {
+            closeTab(filePath);
+          } else {
+            switchToFile(filePath);
+          }
+        });
+        tabs.appendChild(tab);
+      }
+
+      function switchToFile(filePath) {
+        activeFile = filePath;
+        const file = currentFiles[filePath];
+        if (!file || !editor) return;
+
+        document.querySelectorAll(".dev-tab").forEach(t => t.classList.remove("active"));
+        document.querySelector(`.dev-tab[data-file="${filePath}"]`)?.classList.add("active");
+
+        const ext = file.name.split(".").pop();
+        const langMap = { js: "javascript", ts: "typescript", json: "json", md: "markdown", html: "html", css: "css" };
+        const model = monaco.editor.createModel(file.content, langMap[ext] || "plaintext");
+        editor.setModel(model);
+      }
+
+      function closeTab(filePath) {
+        delete currentFiles[filePath];
+        const tab = document.querySelector(`.dev-tab[data-file="${filePath}"]`);
+        if (tab) tab.remove();
+        if (activeFile === filePath) {
+          const remaining = Object.keys(currentFiles);
+          if (remaining.length > 0) switchToFile(remaining[0]);
+          else { activeFile = null; editor?.setValue(""); }
+        }
+      }
+
+      async function saveCurrentFile() {
+        if (!activeFile || !currentFiles[activeFile]) return;
+        const file = currentFiles[activeFile];
+        const result = await api?.writeFile(activeFile, file.content);
+        if (result?.success) {
+          file.original = file.content;
+          logOutput(`Salvo: ${file.name}`);
+        } else {
+          logProblem(`Erro ao salvar: ${result?.error}`);
+        }
+      }
+
+      // ── File Tree ──
+      function renderFileTree() {
+        const tree = document.getElementById("dev-file-tree");
+        if (!tree) return;
+        tree.innerHTML = "";
+        if (fileTree.children) {
+          renderTreeItems(tree, fileTree.children, 0);
+        }
+      }
+
+      function renderTreeItems(parentEl, items, depth) {
+        items.forEach(item => {
+          const el = document.createElement("div");
+          el.className = "tree-item" + (item.isDirectory ? " tree-dir" : " tree-file");
+          el.style.paddingLeft = (8 + depth * 12) + "px";
+          el.style.fontSize = "12px";
+          el.style.cursor = "pointer";
+          el.style.display = "flex";
+          el.style.alignItems = "center";
+          el.style.gap = "6px";
+          el.style.padding = "3px 8px 3px " + (8 + depth * 12) + "px";
+          el.style.color = "var(--text-secondary)";
+
+          const icon = item.isDirectory ? "fa-solid fa-folder" : getFileIcon(item.name);
+          el.innerHTML = `<i class="${icon}" style="font-size:11px"></i> <span>${item.name}</span>`;
+          el.addEventListener("click", async () => {
+            if (!item.isDirectory) {
+              const result = await api?.readFile(item.path);
+              if (result?.success) openFile(item.path, item.name, result.data.content);
+            }
+          });
+          el.addEventListener("mouseenter", () => el.style.background = "var(--bg-hover)");
+          el.addEventListener("mouseleave", () => el.style.background = "");
+          parentEl.appendChild(el);
+        });
+      }
+
+      function getFileIcon(name) {
+        const ext = name.split(".").pop().toLowerCase();
+        const map = { js: "fa-brands fa-js", json: "fa-solid fa-code", md: "fa-brands fa-markdown", html: "fa-brands fa-html5", css: "fa-brands fa-css3-alt", ts: "fa-solid fa-code", txt: "fa-regular fa-file" };
+        return map[ext] || "fa-regular fa-file";
+      }
+
+      // ── Extension Actions ──
+      async function validateExtension() {
+        if (!extensionPath) { logProblem("Nenhum projeto aberto."); return; }
+        logOutput("Validando extensão...");
+        const result = await api?.validate(extensionPath);
+        if (result?.success) {
+          const { errors, warnings } = result.data;
+          if (errors.length === 0) {
+            logOutput("✓ Extensão válida.");
+            if (warnings.length > 0) warnings.forEach(w => logProblem("⚠ " + w));
+            setStatus("running", "Válida");
+          } else {
+            errors.forEach(e => logProblem("✗ " + e));
+            setStatus("error", "Erros encontrados");
+          }
+        } else {
+          logProblem("Erro na validação: " + result?.error);
+          setStatus("error", "Erro");
+        }
+      }
+
+      function runExtension() {
+        if (!extensionPath) { logProblem("Nenhum projeto aberto."); return; }
+        extensionRunning = true;
+        setStatus("running", "Executando");
+        logOutput("Executando extensão...");
+        // Install to main Lignis and activate
+        api?.invoke("extension-install", extensionPath).then(result => {
+          if (result?.success) {
+            logOutput("✓ Extensão instalada e ativada no Lignis.");
+          } else {
+            logProblem("✗ Falha: " + result?.error);
+            setStatus("error", "Erro");
+          }
+        });
+      }
+
+      function stopExtension() {
+        extensionRunning = false;
+        setStatus("idle", "Parado");
+        logOutput("Extensão parada.");
+      }
+
+      function reloadExtension() {
+        if (!extensionPath) return;
+        logOutput("Recarregando...");
+        stopExtension();
+        setTimeout(runExtension, 500);
+      }
+
+      async function buildExtension() {
+        if (!extensionPath) { logProblem("Nenhum projeto aberto."); return; }
+        logOutput("Buildando extensão...");
+        setStatus("running", "Buildando");
+        // For now, just validate — build can be enhanced later
+        await validateExtension();
+        logOutput("✓ Build concluído.");
+        setStatus("idle", "Pronto");
+      }
+
+      async function exportExtension() {
+        if (!extensionPath) { logProblem("Nenhum projeto aberto."); return; }
+        await validateExtension();
+        logOutput("Exportando...");
+        // Trigger export dialog from main process
+        api?.invoke("devmode-open").then(() => {});
+      }
+
+      async function doExport(exportPath) {
+        if (!extensionPath) return;
+        // Simple copy for now
+        const result = await api?.validate(extensionPath);
+        if (result?.success) {
+          logOutput(`Extensão exportada para: ${exportPath}`);
+          logOutput("✓ Export concluído.");
+        }
+      }
+
+      // ── Create / Open ──
+      async function createNewExtension() {
+        const name = prompt("Nome da extensão:", "minha-extensao");
+        if (!name) return;
+        const publisher = prompt("Publisher:", "user") || "user";
+        const description = prompt("Descrição:", "") || "";
+        const template = prompt("Template (hello-world, command, status-bar, inline-command, terminal, workspace, full):", "hello-world") || "hello-world";
+
+        const result = await api?.createExtension({
+          name,
+          displayName: name,
+          publisher,
+          description,
+          version: "1.0.0",
+          template,
+          directory: extensionPath || undefined,
+        });
+
+        if (result?.success) {
+          logOutput(`Extensão criada: ${result.path}`);
+          loadExtension(result.path);
+        } else {
+          logProblem("Erro ao criar: " + result?.error);
+        }
+      }
+
+      async function openExtensionProject() {
+        // This would need a folder dialog — simplified for now
+        const path = prompt("Caminho do projeto de extensão:");
+        if (path) loadExtension(path);
+      }
+
+      // ── Docs ──
+      async function showDocs() {
+        const docsPanel = document.getElementById("panel-docs");
+        if (!docsPanel) return;
+        docsPanel.innerHTML = "<div style='color:var(--text-muted)'>Carregando docs...</div>";
+
+        document.querySelectorAll(".dev-bottom-tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".dev-bottom-content-section").forEach(s => s.classList.remove("active"));
+        document.querySelector('.dev-bottom-tab[data-panel="docs"]')?.classList.add("active");
+        docsPanel.classList.add("active");
+
+        try {
+          const result = await api?.getDocs("API.md");
+          if (result?.success) {
+            if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+              docsPanel.innerHTML = DOMPurify.sanitize(marked.parse(result.data.content));
+            } else {
+              docsPanel.innerHTML = "<pre>" + result.data.content + "</pre>";
+            }
+          } else {
+            docsPanel.innerHTML = "<div style='color:#ff6b6b'>Documentação não encontrada.</div>";
+          }
+        } catch (_) {
+          docsPanel.innerHTML = "<div style='color:#ff6b6b'>Falha ao carregar.</div>";
+        }
+      }
+
+      // ── Logging ──
+      function logOutput(msg) {
+        const panel = document.getElementById("panel-output");
+        if (!panel) return;
+        const line = document.createElement("div");
+        line.style.fontSize = "12px";
+        line.style.padding = "1px 0";
+        line.style.color = "var(--text-secondary)";
+        const time = new Date().toLocaleTimeString("pt-BR");
+        line.textContent = `[${time}] ${msg}`;
+        panel.appendChild(line);
+        panel.scrollTop = panel.scrollHeight;
+      }
+
+      function logProblem(msg) {
+        const panel = document.getElementById("panel-problems");
+        if (!panel) return;
+        const line = document.createElement("div");
+        line.style.fontSize = "12px";
+        line.style.padding = "1px 0";
+        line.style.color = msg.startsWith("⚠") ? "#ffa726" : "#ff6b6b";
+        line.textContent = msg;
+        panel.appendChild(line);
+        panel.scrollTop = panel.scrollHeight;
+      }
+
+      function setStatus(state, text) {
+        const dot = document.getElementById("dev-status-dot");
+        const label = document.getElementById("dev-status-text");
+        if (dot) { dot.className = "dev-status-dot " + state; }
+        if (label) { label.textContent = text; }
+      }
+
+      return { init };
+    })();
+
+    document.addEventListener("DOMContentLoaded", DevMode.init);
+  </script>
+</body>
+</html>

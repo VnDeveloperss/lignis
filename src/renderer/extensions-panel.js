@@ -63,6 +63,9 @@ const ExtensionsPanel = (function () {
           <h2><i class="fa-solid fa-puzzle-piece"></i> Extensões</h2>
         </div>
         <div class="ext-header-actions">
+          <button class="ext-btn ext-btn-primary" id="ext-create-btn" title="Criar nova extensão">
+            <i class="fa-solid fa-plus"></i> Criar Extensão
+          </button>
           <button class="ext-btn ext-btn-secondary" id="ext-import-btn" title="Instalar extensão de pasta">
             <i class="fa-solid fa-folder-plus"></i> Instalar
           </button>
@@ -93,6 +96,7 @@ const ExtensionsPanel = (function () {
   function bindEvents() {
     document.getElementById("ext-close-panel-btn")?.addEventListener("click", close);
     document.getElementById("ext-import-btn")?.addEventListener("click", importExtension);
+    document.getElementById("ext-create-btn")?.addEventListener("click", createExtension);
 
     // Search
     document.getElementById("ext-search-input")?.addEventListener("input", (e) => {
@@ -203,6 +207,7 @@ const ExtensionsPanel = (function () {
       actionBtns.push(`<button class="ext-card-btn ext-card-btn-error" data-action="reload" title="Tentar novamente"><i class="fa-solid fa-rotate-right"></i></button>`);
       actionBtns.push(`<button class="ext-card-btn" data-action="disable" title="Desativar"><i class="fa-solid fa-stop"></i></button>`);
     }
+    actionBtns.push(`<button class="ext-card-btn" data-action="devmode" title="Abrir no DevMode"><i class="fa-solid fa-code"></i></button>`);
     actionBtns.push(`<button class="ext-card-btn" data-action="uninstall" title="Desinstalar"><i class="fa-solid fa-trash"></i></button>`);
 
     return `
@@ -357,6 +362,9 @@ const ExtensionsPanel = (function () {
         case "export":
           if (typeof App !== "undefined" && App.showToast) App.showToast("Extensão exportada.", "success");
           break;
+        case "devmode":
+          await window.lignisAPI.invoke("devmode-open", ext.path);
+          break;
         case "validate":
           const valResult = await api.extensionGet(id);
           if (valResult.success && valResult.data) {
@@ -387,6 +395,31 @@ const ExtensionsPanel = (function () {
       }
     } catch (err) {
       if (typeof App !== "undefined" && App.showToast) App.showToast(`Erro ao importar: ${err.message}`, "error");
+    }
+  }
+
+  async function createExtension() {
+    const name = prompt("Nome da extensão:", "minha-extensao");
+    if (!name) return;
+    const publisher = prompt("Publisher:", "user") || "user";
+    const description = prompt("Descrição:", "") || "";
+    const template = prompt("Template (hello-world, command, status-bar, inline-command, terminal, workspace, full):", "hello-world") || "hello-world";
+
+    try {
+      const result = await window.lignisAPI.invoke("devmode-create-extension", {
+        name, displayName: name, publisher, description,
+        version: "1.0.0", template,
+      });
+      if (result && result.success) {
+        if (typeof App !== "undefined" && App.showToast) App.showToast(`Extensão criada: ${name}`, "success");
+        // Open in DevMode
+        await window.lignisAPI.invoke("devmode-open", result.path);
+        await renderList();
+      } else {
+        if (typeof App !== "undefined" && App.showToast) App.showToast(`Erro: ${result?.error}`, "error");
+      }
+    } catch (err) {
+      if (typeof App !== "undefined" && App.showToast) App.showToast(`Erro: ${err.message}`, "error");
     }
   }
 

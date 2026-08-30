@@ -1,5 +1,34 @@
 # Changelog — Lignis
 
+## Versão 3.6.0
+
+### Novidades
+- **SQLite integrado**: Armazenamento persistente e estruturado para extensões, sessões, arquivos recentes e logs.
+- **DevMode Extension Window**: Janela separada completa para criação e desenvolvimento de extensões.
+- **Templates de extensão**: Hello World, Command, Status Bar, Inline Command, Terminal, Workspace e Full.
+- **IntelliSense para extensões**: Arquivo lignis.d.ts com tipos completos da API para autocomplete no Monaco.
+- **Extension Inspector**: Visualização de status, logs e problemas de extensões.
+- **Criar Extensão**: Botão no painel de extensões para criar nova extensão com wizard.
+- **Abrir no DevMode**: Abre extensão existente na janela de desenvolvimento.
+
+### Melhorias
+- DatabaseService com migrations versionadas e fallback de corrupção.
+- Extensões persistidas no SQLite com registro completo.
+- Storage isolado por extensão via SQLite (globalState/workspaceState).
+- Logs de extensão armazenados no banco de dados.
+- DevMode window com Monaco Editor, file explorer, terminal e documentação.
+- DevMode menu específico: Arquivo, Editar, Executar, Extensão, Ajuda.
+- DevMode keyboard shortcuts: F5 (executar), Shift+F5 (parar), Ctrl+Shift+B (build).
+- Painel de documentação integrado na janela DevMode.
+- File tree com ícones por tipo de arquivo.
+- Toolbar de ações: Executar, Parar, Recarregar, Validar, Build, Exportar.
+- Status indicator com cores (idle, running, error).
+
+### Correções
+- Terminal: listener registrado antes da criação do PTY.
+- Comandos Lignis no terminal com fallback para window.lignisAPI.CommandRegistry.
+- Extension handlers movidos para dentro do escopo correto do setupIpc.
+
 ## Versão 3.5.1
 
 ### Novidades

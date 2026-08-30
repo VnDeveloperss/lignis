@@ -5,6 +5,8 @@ const { pathToFileURL } = require("url");
 const { setupIpc } = require("./ipc");
 const { buildMenu } = require("./menu");
 const { ExtensionManager } = require("./extension-manager");
+const { db } = require("./database");
+const { setupDevModeIpc } = require("./dev-mode");
 const Store = require("electron-store");
 const { autoUpdater } = require("electron-updater");
 
@@ -165,6 +167,9 @@ if (!gotTheLock) {
 }
 
 app.whenReady().then(async () => {
+  // Initialize database
+  db.init();
+
   registerLignisProtocol();
   createWindow();
 
@@ -174,6 +179,9 @@ app.whenReady().then(async () => {
 
   const menu = buildMenu(mainWindow, store);
   Menu.setApplicationMenu(menu);
+
+  // Setup DevMode IPC handlers
+  setupDevModeIpc();
 
   // Load extensions (async, non-blocking)
   extensionManager.loadAll().catch((err) => {
@@ -287,6 +295,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isForceClose = true;
+  db.close();
 });
 
 module.exports = { mainWindow: () => mainWindow, getStore: () => store, forceClose: () => { isForceClose = true; if (mainWindow) mainWindow.destroy(); } };
