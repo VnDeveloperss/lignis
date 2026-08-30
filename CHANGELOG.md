@@ -1,5 +1,20 @@
 # Changelog — Lignis
 
+## Versão 3.1.1 (Hotfix)
+
+### Correções
+- **Corrigido loader infinito do Monaco**: A causa raiz era que o loader AMD do Monaco não expunha a função `define` globalmente no Electron Renderer quando `preferScriptTags` estava ativo, impedindo que scripts carregados via `<script>` tag registrassem módulos. Correção aplicada no loader AMD.
+- **Adicionado timeout IPC ao carregamento de configurações**: Se as configurações demorarem mais que 5 segundos para carregar via IPC, o aplicativo continua com valores padrão em vez de travar.
+- **Adicionado timeout à detecção de plataforma**: A detecção de plataforma agora tem timeout de 3 segundos para evitar travamento.
+- **Removido fallback redundante de 3 segundos**: O fallback de injeção direta de `<script>` foi removido do editor, pois a correção da causa raiz o torna desnecessário.
+- **Melhorado tratamento de erros na inicialização**: Process.versions agora é acessado com tratamento de erro adequado.
+
+### Melhorias
+- **Inicialização mais robusta**: Etapas críticas agora possuem timeouts independentes, evitando que uma falha bloqueie toda a inicialização.
+- **Logs de diagnóstico aprimorados**: Mensagens de erro mais detalhadas durante o processo de inicialização.
+
+---
+
 ## Versão 3.1.0
 
 ### Novidades

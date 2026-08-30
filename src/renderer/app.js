@@ -1,5 +1,5 @@
 // ========================================
-// Lignis v3.1.0 - Main Application Orchestrator
+// Lignis v3.1.1 - Main Application Orchestrator
 // ========================================
 
 const App = (function () {
@@ -60,7 +60,7 @@ const App = (function () {
     try {
       startupState = "BOOTING";
       console.log("[STARTUP] BOOTSTRAP iniciado.");
-      console.log("[STARTUP] Electron:", process.versions?.electron || "?", "Chrome:", process.versions?.chrome || "?");
+      try { console.log("[STARTUP] Electron:", process.versions?.electron || "?", "Chrome:", process.versions?.chrome || "?"); } catch (_) { console.log("[STARTUP] Environment info unavailable."); }
 
       // Step 1: Locale
       setLoadingText("Preparando interface...");
@@ -84,9 +84,13 @@ const App = (function () {
       }
       console.log("[Lignis] COMANDOS pronto.");
 
-      // Step 4: Platform detection
+      // Step 4: Platform detection (non-critical, with timeout)
       try {
-        const platformResult = await window.lignisAPI.getPlatform();
+        const platformPromise = window.lignisAPI.getPlatform();
+        const platformTimeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Platform IPC timeout')), 3000)
+        );
+        const platformResult = await Promise.race([platformPromise, platformTimeout]);
         if (platformResult.success && platformResult.data === "darwin") {
           document.body.classList.add("darwin");
         }

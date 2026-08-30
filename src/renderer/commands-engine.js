@@ -1,5 +1,5 @@
 // ========================================
-// Lignis v3.1.0 - Commands Engine
+// Lignis v3.1.1 - Commands Engine
 // Safe inline command system (NO eval)
 // ========================================
 
@@ -807,7 +807,7 @@ const LignisCommands = (function () {
           const result = await window.lignisAPI.getAppInfo();
           if (result.success) return result.data.version;
         } catch (_) {}
-        return "3.1.0";
+        return "3.1.1";
       },
     });
   }

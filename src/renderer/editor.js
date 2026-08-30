@@ -1,5 +1,5 @@
 // ========================================
-// Lignis v3.0.0 - Monaco Editor Wrapper
+// Lignis v3.1.1 - Monaco Editor Wrapper
 // Local Monaco (no CDN dependency)
 // ========================================
 
@@ -305,65 +305,6 @@ const EditorManager = (function () {
         markFail(err);
       }
 
-      // ── Fallback: if AMD loader fails to call back within 3s, inject <script> directly ──
-      setTimeout(() => {
-        if (settled) return;
-        console.warn("[STARTUP] Monaco AMD callback não disparou. Tentando fallback via <script>...");
-        try {
-          const script = document.createElement("script");
-          script.src = getMonacoBase() + "/editor/editor.main.js";
-          script.onload = () => {
-            if (settled) return;
-            console.log("[STARTUP] Fallback <script> onload disparado.");
-            if (typeof monaco !== "undefined" && monaco.editor && typeof monaco.editor.create === "function") {
-              // Monaco loaded via fallback — create editor
-              try {
-                const SM = typeof SettingsManager !== "undefined" ? SettingsManager : null;
-                const opts = {
-                  value: "", language: "plaintext", theme: "lignis-dark",
-                  fontSize: SM ? SM.get("fontSize") : 14,
-                  fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace",
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  tabSize: SM ? SM.get("tabSize") : 4,
-                  insertSpaces: SM ? SM.get("useSpaces") : true,
-                  padding: { top: 8 },
-                  suggest: { showWords: false },
-                  fixedOverflowWidgets: true,
-                  autoClosingBrackets: "always",
-                  autoClosingQuotes: "always",
-                  contextmenu: false,
-                };
-                editor = monaco.editor.create(document.getElementById("editor"), opts);
-                if (!editor || !editor.getModel()) {
-                  markFail(new Error("Fallback: Editor criado mas model não disponível."));
-                  return;
-                }
-                console.log("[STARTUP] Fallback: Monaco criado com sucesso via <script>.");
-                // Register basic themes
-                try {
-                  monaco.editor.defineTheme("lignis-dark", { base: "vs-dark", inherit: true, rules: [], colors: { "editor.background": "#171821" } });
-                  monaco.editor.defineTheme("lignis-light", { base: "vs", inherit: true, rules: [], colors: { "editor.background": "#fafafa" } });
-                } catch (_) {}
-                markDone();
-              } catch (e) {
-                markFail(new Error(`Fallback: Falha ao criar editor: ${e.message}`));
-              }
-            } else {
-              markFail(new Error("Fallback: Monaco não disponível após carregar script."));
-            }
-          };
-          script.onerror = (e) => {
-            if (!settled) {
-              console.error("[STARTUP] Fallback <script> onerror:", e);
-              markFail(new Error("Falha ao carregar Monaco via fallback."));
-            }
-          };
-          document.head.appendChild(script);
-        } catch (e) {
-          if (!settled) markFail(new Error(`Fallback exception: ${e.message}`));
-        }
-      }, 3000);
     });
   }
 
