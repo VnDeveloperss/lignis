@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' blob: https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline' blob: data: https://cdn.jsdelivr.net;
+    font-src 'self' data: blob:;
+    img-src 'self' data: blob:;
+    worker-src 'self' blob:;
+    connect-src 'self';
+  ">
+  <title>Lignis</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" onerror="console.warn('[Lignis] xterm.css não disponível.')">
+  <script src="monaco-setup.js"></script>
+  <script src="monaco/loader.js"></script>
+</head>
+<body>
+  <!-- Tab Bar -->
+  <div id="tab-bar">
+    <div id="tabs-container"></div>
+    <button id="new-tab-btn" class="tab-action-btn" title="Nova aba (Ctrl+T)" aria-label="Nova aba">
+      <i class="fa-solid fa-plus fa-xs"></i>
+    </button>
+  </div>
+
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <button class="tool-btn" id="tb-new" title="Novo (Ctrl+N)" aria-label="Novo arquivo"><i class="fa-regular fa-file fa-sm"></i></button>
+    <button class="tool-btn" id="tb-open" title="Abrir (Ctrl+O)" aria-label="Abrir arquivo"><i class="fa-solid fa-folder-open fa-sm"></i></button>
+    <button class="tool-btn" id="tb-save" title="Salvar (Ctrl+S)" aria-label="Salvar"><i class="fa-regular fa-floppy-disk fa-sm"></i></button>
+    <div class="tool-separator"></div>
+    <button class="tool-btn" id="tb-undo" title="Desfazer (Ctrl+Z)" aria-label="Desfazer"><i class="fa-solid fa-arrow-rotate-left fa-sm"></i></button>
+    <button class="tool-btn" id="tb-redo" title="Refazer (Ctrl+Shift+Z)" aria-label="Refazer"><i class="fa-solid fa-arrow-rotate-right fa-sm"></i></button>
+    <div class="tool-separator"></div>
+    <button class="tool-btn" id="tb-find" title="Localizar (Ctrl+F)" aria-label="Localizar"><i class="fa-solid fa-magnifying-glass fa-sm"></i></button>
+    <button class="tool-btn" id="tb-wrap" title="Quebra de linha (Alt+Z)" aria-label="Quebra de linha"><i class="fa-solid fa-text-width fa-sm"></i></button>
+    <button class="tool-btn" id="tb-sidebar" title="Sidebar (Ctrl+B)" aria-label="Sidebar"><i class="fa-solid fa-bars fa-sm"></i></button>
+    <button class="tool-btn" id="tb-focus" title="Modo foco" aria-label="Modo foco"><i class="fa-solid fa-crosshairs fa-sm"></i></button>
+    <div class="tool-separator"></div>
+    <button class="tool-btn" id="tb-theme" title="Alternar tema (Ctrl+Shift+T)" aria-label="Alternar tema"><i class="fa-solid fa-moon fa-sm"></i></button>
+  </div>
+
+  <!-- Main Layout (sidebar + editor) -->
+  <div id="main-layout">
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <span>Explorador</span>
+        <button id="sidebar-close-btn" title="Fechar sidebar" aria-label="Fechar sidebar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="sidebar-content" id="sidebar-content">
+        <div class="sidebar-empty" id="sidebar-empty">
+          <p>Nenhuma pasta aberta</p>
+          <button id="sidebar-open-folder-btn" aria-label="Abrir pasta"><i class="fa-solid fa-folder-open"></i> Abrir pasta</button>
+        </div>
+        <div id="file-tree" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Editor Area -->
+    <div id="editor-area" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+      <!-- Search Bar -->
+      <div id="search-bar" class="hidden">
+        <div class="search-row">
+          <div class="search-input-group">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="search-input" placeholder="Buscar..." autocomplete="off" spellcheck="false">
+            <span id="search-count" class="search-count"></span>
+          </div>
+          <div class="search-buttons">
+            <button class="search-btn" id="search-prev" title="Anterior (Shift+Enter)" aria-label="Anterior"><i class="fa-solid fa-chevron-up"></i></button>
+            <button class="search-btn" id="search-next" title="Próximo (Enter)" aria-label="Próximo"><i class="fa-solid fa-chevron-down"></i></button>
+            <button class="search-btn" id="search-case" title="Maiúsculas/Minúsculas">Aa</button>
+            <button class="search-btn" id="search-word" title="Palavra inteira">Ab</button>
+            <button class="search-btn" id="search-regex" title="Regex">.*</button>
+            <button class="search-btn" id="search-close" title="Fechar (Esc)" aria-label="Fechar busca"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+        <div class="search-row" id="replace-row" style="display:none;">
+          <div class="search-input-group">
+            <i class="fa-solid fa-right-left search-icon"></i>
+            <input type="text" id="replace-input" placeholder="Substituir..." autocomplete="off" spellcheck="false">
+          </div>
+          <div class="search-buttons">
+            <button class="search-btn" id="replace-one" title="Substituir" aria-label="Substituir"><i class="fa-solid fa-check"></i></button>
+            <button class="search-btn" id="replace-all" title="Substituir tudo" aria-label="Substituir tudo"><i class="fa-solid fa-check-double"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Editor Container -->
+      <div id="editor-container">          <div id="editor"></div>
+        <div id="markdown-preview" class="hidden"></div>
+        <iframe id="html-preview" sandbox="allow-scripts" class="hidden" title="Pré-visualização HTML"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="status-bar">
+    <div class="status-left">
+      <span id="status-cursor" class="status-clickable" title="Posição do cursor">Ln 1, Col 1</span>
+      <span class="status-sep">|</span>
+      <span id="status-chars">0 caracteres</span>
+      <span class="status-sep">|</span>
+      <span id="status-words">0 palavras</span>
+      <span id="status-selection" class="status-selection hidden"></span>
+    </div>
+    <div class="status-right">
+      <span id="status-indentation" class="status-clickable" title="Clicar para alterar indentação">Espaços: 4</span>
+      <span class="status-sep">|</span>
+      <span id="status-language" class="status-clickable" title="Clicar para alterar linguagem">Plain Text</span>
+      <span class="status-sep">|</span>
+      <span id="status-zoom" class="status-clickable" title="Clicar para alterar zoom">100%</span>
+      <span class="status-sep">|</span>
+      <span id="status-lineending" class="status-clickable" title="Clicar para alternar (LF/CRLF)">LF</span>
+      <span class="status-sep">|</span>
+      <span id="status-encoding" class="status-clickable" title="Codificação">UTF-8</span>
+      <span id="status-readonly" class="status-indicator hidden"><i class="fa-solid fa-lock" style="font-size:10px"></i> Somente leitura</span>
+    </div>
+  </div>
+
+  <!-- Popups -->
+  <div id="context-menu" class="menu-popup hidden"><div class="menu-items" id="context-menu-items"></div></div>
+  <div id="tab-context-menu" class="menu-popup hidden"><div class="menu-items" id="tab-context-menu-items"></div></div>
+  <div id="zoom-picker-popup" class="hidden"></div>
+
+  <!-- Command Palette -->
+  <div id="command-palette-overlay" class="hidden">
+    <div id="command-palette">
+      <div class="command-palette-header">
+        <i class="fa-solid fa-terminal fa-sm"></i>
+        <input type="text" id="command-palette-input" placeholder="Digite um comando..." autocomplete="off" spellcheck="false">
+      </div>
+      <div class="command-palette-list" id="command-palette-list"></div>
+    </div>
+  </div>
+
+  <!-- Quick Open -->
+  <div id="quick-open-overlay" class="hidden">
+    <div id="quick-open">
+      <div class="quick-open-header">
+        <i class="fa-solid fa-file-circle-plus fa-sm"></i>
+        <input type="text" id="quick-open-input" placeholder="Digite o nome do arquivo..." autocomplete="off" spellcheck="false">
+      </div>
+      <div class="quick-open-list" id="quick-open-list"></div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings-overlay" class="hidden">
+    <div id="settings-panel">
+      <div class="settings-header">
+        <h2>Configurações</h2>
+        <button class="settings-close" id="settings-close-btn" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <h3><i class="fa-solid fa-code"></i> Editor</h3>
+          <div class="setting-row"><label>Tamanho da fonte</label><div class="setting-control"><button class="setting-btn" id="font-decrease" aria-label="Diminuir fonte">-</button><span id="font-size-display">14px</span><button class="setting-btn" id="font-increase" aria-label="Aumentar fonte">+</button></div></div>
+          <div class="setting-row"><label>Altura da linha</label><select id="setting-line-height"><option value="1.2">1.2</option><option value="1.5" selected>1.5</option><option value="1.8">1.8</option><option value="2.0">2.0</option></select></div>
+          <div class="setting-row"><label>Tamanho da tabulação</label><select id="setting-tab-size"><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option></select></div>
+          <div class="setting-row"><label>Usar espaços em vez de tabs</label><label class="toggle"><input type="checkbox" id="setting-use-spaces" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Números de linha</label><label class="toggle"><input type="checkbox" id="setting-line-numbers" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Quebra automática de linha</label><label class="toggle"><input type="checkbox" id="setting-word-wrap"><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Destacar linha atual</label><label class="toggle"><input type="checkbox" id="setting-highlight-line" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Recuo automático</label><label class="toggle"><input type="checkbox" id="setting-auto-indent" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Fechamento automático de pares</label><label class="toggle"><input type="checkbox" id="setting-auto-pair" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Minimap</label><label class="toggle"><input type="checkbox" id="setting-minimap"><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Font ligatures</label><label class="toggle"><input type="checkbox" id="setting-ligatures"><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Estilo do cursor</label><select id="setting-cursor-style"><option value="line">Linha</option><option value="block">Bloco</option><option value="underline">Sublinhado</option></select></div>
+          <div class="setting-row"><label>Exibir caracteres invisíveis</label><select id="setting-render-whitespace"><option value="none">Ocultar</option><option value="boundary">Limites</option><option value="selection" selected>Seleção</option><option value="all">Todos</option></select></div>
+        </div>
+        <div class="settings-section">
+          <h3><i class="fa-solid fa-palette"></i> Aparência</h3>
+          <div class="setting-row"><label>Tema</label><select id="setting-theme"><option value="dark">Escuro</option><option value="light">Claro</option></select></div>
+          <div class="setting-row"><label>Cor de destaque</label><div class="accent-colors" id="accent-colors"><button class="accent-btn active" data-color="#4a9eff" style="background:#4a9eff" aria-label="Azul"></button><button class="accent-btn" data-color="#4caf50" style="background:#4caf50" aria-label="Verde"></button><button class="accent-btn" data-color="#ff6b6b" style="background:#ff6b6b" aria-label="Vermelho"></button><button class="accent-btn" data-color="#ffa726" style="background:#ffa726" aria-label="Laranja"></button><button class="accent-btn" data-color="#ab47bc" style="background:#ab47bc" aria-label="Roxo"></button><button class="accent-btn" data-color="#26c6da" style="background:#26c6da" aria-label="Ciano"></button></div></div>
+          <div class="setting-row"><label>Escala da interface</label><select id="setting-ui-scale"><option value="80">80%</option><option value="90">90%</option><option value="100" selected>100%</option><option value="110">110%</option><option value="120">120%</option></select></div>
+          <div class="setting-row"><label>Animações da interface</label><select id="setting-animations"><option value="full" selected>Ativadas</option><option value="reduced">Reduzidas</option><option value="none">Desativadas</option></select></div>
+        </div>
+        <div class="settings-section">
+          <h3><i class="fa-regular fa-file"></i> Arquivos</h3>
+          <div class="setting-row"><label>Salvamento automático</label><select id="setting-autosave-mode"><option value="off">Desativado</option><option value="delay">Após atraso</option><option value="focus">Ao perder foco</option></select></div>
+          <div class="setting-row autosave-delay-row" style="display:none;"><label>Intervalo (segundos)</label><select id="setting-autosave-delay"><option value="1">1s</option><option value="3" selected>3s</option><option value="5">5s</option><option value="10">10s</option></select></div>
+          <div class="setting-row"><label>Remover espaços extras ao salvar</label><label class="toggle"><input type="checkbox" id="setting-trim-trailing"><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Adicionar linha final ao salvar</label><label class="toggle"><input type="checkbox" id="setting-final-newline"><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Formatar JSON ao salvar</label><label class="toggle"><input type="checkbox" id="setting-format-on-save"><span class="toggle-slider"></span></label></div>
+        </div>
+        <div class="settings-section">
+          <h3><i class="fa-solid fa-magnifying-glass"></i> Pesquisa</h3>
+          <div class="setting-row"><label>Regex padrão</label><label class="toggle"><input type="checkbox" id="setting-search-regex"><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Diferenciar maiúsculas/minúsculas</label><label class="toggle"><input type="checkbox" id="setting-search-match-case"><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Palavra inteira</label><label class="toggle"><input type="checkbox" id="setting-search-whole-word"><span class="toggle-slider"></span></label></div>
+        </div>
+        <div class="settings-section">
+          <h3><i class="fa-solid fa-clock-rotate-left"></i> Sessão</h3>
+          <div class="setting-row"><label>Restaurar sessão anterior</label><label class="toggle"><input type="checkbox" id="setting-restore-session" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Restaurar posição do cursor</label><label class="toggle"><input type="checkbox" id="setting-restore-cursor" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Restaurar zoom</label><label class="toggle"><input type="checkbox" id="setting-restore-zoom"><span class="toggle-slider"></span></label></div>
+        </div>
+        <div class="settings-section">
+          <h3><i class="fa-solid fa-terminal"></i> Comandos</h3>
+          <div class="setting-row"><label>Ativar Comandos</label><label class="toggle"><input type="checkbox" id="setting-commands-enabled" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Autocomplete de comandos</label><label class="toggle"><input type="checkbox" id="setting-commands-autocomplete" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Destacar comandos reconhecidos</label><label class="toggle"><input type="checkbox" id="setting-commands-highlight" checked><span class="toggle-slider"></span></label></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Dialog -->
+  <div id="about-overlay" class="hidden">
+    <div id="about-dialog">
+      <div class="about-icon">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="8" y="4" width="48" height="56" rx="4" fill="var(--accent)" opacity="0.15"/><rect x="8" y="4" width="48" height="56" rx="4" stroke="var(--accent)" stroke-width="2"/><line x1="18" y1="20" x2="46" y2="20" stroke="var(--accent)" stroke-width="2" opacity="0.6"/><line x1="18" y1="28" x2="42" y2="28" stroke="var(--accent)" stroke-width="2" opacity="0.4"/><line x1="18" y1="36" x2="38" y2="36" stroke="var(--accent)" stroke-width="2" opacity="0.3"/><line x1="18" y1="44" x2="34" y2="44" stroke="var(--accent)" stroke-width="2" opacity="0.2"/></svg>
+      </div>
+      <h2>Lignis</h2>
+      <p id="about-version">Versão ...</p>
+      <p class="about-desc">Editor de texto e código moderno e profissional</p>
+      <div id="about-details" class="about-details"></div>
+      <p class="about-copy">&copy; 2024-2026 Lignis. Todos os direitos reservados.</p>
+      <button class="btn-primary" id="about-close-btn">Fechar</button>
+    </div>
+  </div>
+
+  <!-- Go to Line -->
+  <div id="goto-overlay" class="hidden">
+    <div id="goto-dialog">
+      <h3>Ir para linha</h3>
+      <input type="text" id="goto-input" placeholder="Número da linha... (ex: 150 ou 150:12)" autofocus>
+      <div class="goto-buttons">
+        <button class="btn-secondary" id="goto-cancel">Cancelar</button>
+        <button class="btn-primary" id="goto-ok">Ir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics -->
+  <div id="stats-overlay" class="hidden">
+    <div id="stats-dialog">
+      <h3>Estatísticas do documento</h3>
+      <div class="stats-grid" id="stats-content"></div>
+      <div class="dialog-buttons"><button class="btn-primary" id="stats-close-btn">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- Shortcuts -->
+  <div id="shortcuts-overlay" class="hidden">
+    <div id="shortcuts-dialog">
+      <h3>Atalhos de teclado</h3>
+      <div class="shortcuts-list" id="shortcuts-content"></div>
+      <div class="dialog-buttons"><button class="btn-primary" id="shortcuts-close-btn">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- Language Picker -->
+  <div id="language-overlay" class="hidden">
+    <div id="language-dialog">
+      <h3>Modo de linguagem</h3>
+      <div class="language-list" id="language-list-content"></div>
+      <div class="dialog-buttons"><button class="btn-secondary" id="language-cancel-btn">Cancelar</button></div>
+    </div>
+  </div>
+
+  <!-- Commands Help Dialog -->
+  <div id="commands-help-overlay" class="hidden">
+    <div id="commands-help-dialog">
+      <div class="commands-help-header">          <h3><i class="fa-solid fa-terminal"></i> Comandos do Lignis</h3>
+        <button class="settings-close" id="commands-help-close-btn" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="commands-help-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="commands-help-input" placeholder="Pesquisar comandos..." autocomplete="off" spellcheck="false">
+      </div>
+      <div class="commands-help-list" id="commands-help-list"></div>
+    </div>
+  </div>
+
+  <!-- Update Modal -->
+  <div id="update-overlay" class="hidden">
+    <div id="update-dialog">
+      <div class="update-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="22" stroke="var(--accent)" stroke-width="2" fill="var(--accent-dim)"/>
+          <path d="M24 14 L24 34 M16 24 L32 24" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3 id="update-title">Nova atualização disponível</h3>
+      <p id="update-info" class="update-desc"></p>
+      <div id="update-progress-container" class="hidden">
+        <div class="update-progress-bar">
+          <div id="update-progress-fill" class="update-progress-fill"></div>
+        </div>
+        <p id="update-progress-text" class="update-progress-text">Baixando...</p>
+      </div>
+      <div class="update-buttons">
+        <button class="btn-primary" id="update-action-btn">Baixar atualização</button>
+        <button class="btn-secondary" id="update-dismiss-btn">Agora não</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast & Loading -->
+  <div id="toast-container"></div>
+  <div id="loading-overlay"><div class="loading-spinner"></div><span id="loading-text">Iniciando Lignis...</span></div>
+
+  <!-- xterm.js for terminal (optional, non-blocking) -->
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js" defer onerror="console.warn('[Lignis] xterm.js não disponível via CDN.')"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js" defer onerror="console.warn('[Lignis] FitAddon não disponível.')"></script>
+
+  <script src="locales/pt-BR.js"></script>
+  <script src="locale.js"></script>
+  <script src="editor.js"></script>
+  <script src="tabs.js"></script>
+  <script src="statusbar.js"></script>
+  <script src="search.js"></script>
+  <script src="settings.js"></script>
+  <script src="commands-engine.js"></script>
+  <script src="command-palette.js"></script>
+  <script src="context-menu.js"></script>
+  <script src="tools.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

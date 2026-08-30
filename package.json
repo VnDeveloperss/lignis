@@ -1,0 +1,66 @@
+{
+  "name": "lignis",
+  "version": "3.1.0",
+  "description": "Lignis - Editor de texto e código moderno, rápido e extensível",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:mac": "electron-builder --mac",
+    "release": "node scripts/release.js",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
+    "release:dry": "node scripts/release.js patch --dry-run"
+  },
+  "author": "Lignis Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.5.1",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.7",
+    "monaco-editor": "^0.44.0"
+  },
+  "build": {
+    "appId": "com.lignis.app",
+    "productName": "Lignis",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "!src/renderer/monaco/base/common/worker/*.nls.*.js",
+      "!src/renderer/monaco/min-maps/**"
+    ],
+    "asarUnpack": [],
+    "publish": {
+      "provider": "github",
+      "owner": "VnDeveloperss",
+      "repo": "lignis"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "src/assets/icons/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "src/assets/icons",
+      "category": "Utility"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "src/assets/icons/icon.icns",
+      "category": "public.app-category.productivity"
+    }
+  }
+}

@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+release/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+.env.example
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Runtime data
+tmp/
+temp/
+
+# Coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Electron
+out/
+
+# Monoco source maps (optional - large files)
+src/renderer/monaco/min-maps/
+
+# User data (never commit)
+userData/
+app-data/
+
+# Temporary files
+*.tmp
+*.tmp.novapad
+*.tmp.lignis
