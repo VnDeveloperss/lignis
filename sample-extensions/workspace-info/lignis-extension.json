@@ -1,0 +1,11 @@
+{
+  "name": "workspace-info",
+  "displayName": "Workspace Info",
+  "version": "1.0.0",
+  "publisher": "lignis",
+  "description": "Mostra informações sobre o workspace atual. Registra o comando $workspace.info().",
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "permissions": ["workspace.read", "commands", "statusbar", "inlineCommands"],
+  "engines": { "lignis": ">=3.5.0" }
+}

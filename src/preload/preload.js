@@ -83,6 +83,7 @@ const ALLOWED_RECEIVE_CHANNELS = [
   "ext-show-warn",
   "ext-show-error",
   "ext-show-progress",
+  "open-extensions",
 ];
 
 // Whitelist of allowed invoke channels (renderer -> main)
@@ -149,6 +150,10 @@ const ALLOWED_INVOKE_CHANNELS = [
   "ext-find-files",
   "ext-open-document",
   "extension-get-commands",
+  "extension-validate",
+  "extension-export",
+  "extension-rollback",
+  "extension-reload",
 ];
 
 contextBridge.exposeInMainWorld("lignisAPI", {
@@ -233,6 +238,10 @@ contextBridge.exposeInMainWorld("lignisAPI", {
   extensionGet: (id) => ipcRenderer.invoke("extension-get", id),
   extensionInstallDialog: () => ipcRenderer.invoke("extension-install-dialog"),
   extensionGetCommands: () => ipcRenderer.invoke("extension-get-commands"),
+  extensionValidate: (id) => ipcRenderer.invoke("extension-validate", id),
+  extensionExport: (id) => ipcRenderer.invoke("extension-export", id),
+  extensionRollback: (id) => ipcRenderer.invoke("extension-rollback", id),
+  extensionReload: (id) => ipcRenderer.invoke("extension-reload", id),
 
   // Listen for events from main process
   on: (channel, callback) => {

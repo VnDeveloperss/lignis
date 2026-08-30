@@ -765,4 +765,40 @@ function setupIpc(mainWindow, store, extManager) {
     return { success: true, data: extensionManager.getRegisteredCommands() };
   });
 
+  ipcMain.handle("extension-validate", (event, id) => {
+    if (!extensionManager) return { success: false, error: "Extension system not initialized." };
+    const result = extensionManager.validateExtension(id);
+    return { success: true, data: result };
+  });
+
+  ipcMain.handle("extension-export", async (event, id) => {
+    if (!extensionManager) return { success: false };
+    try {
+      const result = await extensionManager.exportExtension(id);
+      return { success: true, data: result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-rollback", async (event, id) => {
+    if (!extensionManager) return { success: false };
+    try {
+      await extensionManager.rollback(id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("extension-reload", async (event, id) => {
+    if (!extensionManager) return { success: false };
+    try {
+      await extensionManager.reload(id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
 module.exports = { setupIpc };

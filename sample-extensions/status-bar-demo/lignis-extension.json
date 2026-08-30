@@ -1,0 +1,11 @@
+{
+  "name": "status-bar-demo",
+  "displayName": "Status Bar Demo",
+  "version": "1.0.0",
+  "publisher": "lignis",
+  "description": "Demonstra como criar múltiplos itens na barra de status.",
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "permissions": ["statusbar", "commands"],
+  "engines": { "lignis": ">=3.5.0" }
+}

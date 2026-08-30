@@ -264,6 +264,10 @@ function buildMenu(mainWindow, store) {
           accelerator: "CmdOrCtrl+`",
           click: () => mainWindow.webContents.send("toggle-terminal"),
         },
+        {
+          label: "Extensões",
+          click: () => mainWindow.webContents.send("open-extensions"),
+        },
         { type: "separator" },
         {
           label: "Modo foco",

@@ -115,6 +115,7 @@ const App = (function () {
       try { setupDragAndDrop(); } catch (_) {}
       try { setupEditorListeners(); } catch (_) {}
       try { setupAbout(); } catch (_) {}
+      try { ExtensionsPanel.init(); } catch (_) {}
 
       // Step 11: Optional libraries (non-critical — loaded async)
       try { setupMarkdownLibraries(); } catch (_) {}
@@ -1351,6 +1352,7 @@ const App = (function () {
     api.on("open-settings", () => SettingsManager.openSettings());
     api.on("open-about", showAbout);
     api.on("menu-open-commands-help", () => LignisCommands.openHelp());
+    api.on("open-extensions", () => ExtensionsPanel.open());
 
     api.on("zoom-in", () => {
       const size = EditorManager.zoomIn();

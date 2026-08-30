@@ -1,5 +1,39 @@
 # Changelog — Lignis
 
+## Versão 3.5.0
+
+### Novidades
+- **Painel completo de Extensões**: Visualizar, buscar, filtrar, ativar, desativar, recarregar, exportar, validar e desinstalar extensões.
+- **Validação de Manifesto**: Validação automática de `lignis-extension.json` com semver, campos obrigatórios e compatibilidade de engine.
+- **Validação de Arquivos**: Verificação de arquivos obrigatórios antes da instalação.
+- **Importar/Exportar Extensões**: Importar de pasta local, exportar extensão para compartilhamento.
+- **Rollback de Extensões**: Restaurar versão anterior automaticamente antes de atualização.
+- **Crash Isolation**: Extensões quebradas não derrubam o Lignis. Erros são capturados e registrados.
+- **Safe Mode**: Iniciar com extensões desativadas via `--disable-extensions`.
+- **Activation Timeout**: Extensões que travam na ativação são marcadas com erro após 15 segundos.
+- **Extension Storage**: Storage isolado por extensão via `lignis.storage`.
+- **Conflict Detection**: Detecção de conflitos quando múltiplas extensões registram o mesmo comando.
+- **Crash Log**: Registro de erros de ativação para diagnóstico.
+- **Detalhes da Extensão**: Visualização completa de permissões, activation events, contributes e erros.
+- **Documentação de Extensões**: Getting Started, API Reference, Manifest, Permissions, Lifecycle.
+- **Exemplos de Extensões**: hello-lignis, workspace-info, status-bar-demo.
+
+### Melhorias
+- Reescrita completa do ExtensionManager com arquitetura robusta.
+- Permissões estendidas: `workspace.watch`, `editor.read`, `editor.write`, `fs.read`, `fs.write`, `clipboard.read`, `clipboard.write`.
+- API de Storage isolado por extensão.
+- API de Document para ler dados do documento ativo.
+- Menu Exibir > Extensões adicionado.
+- Preload com canais completos para todas as operações de extensão.
+- CSS profissional para o painel de extensões.
+- Validação de semver e engine compatibility.
+
+### Correções
+- Extensões com erros agora são marcadas visualmente com borda vermelha.
+- Subscriptions são dispose corretamente ao desativar extensão.
+- Comandos registrados são limpos ao desativar extensão.
+- Itens da barra de status são removidos ao desativar extensão.
+
 ## Versão 3.4.0
 
 ### Novidades
