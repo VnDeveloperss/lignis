@@ -10,6 +10,7 @@ const EditorManager = (function () {
   let currentTabId = null;
   let monacoState = "NOT_STARTED"; // NOT_STARTED | LOADING | READY | FAILED
   let monacoError = null;
+  let initPromise = null;
 
   const LANG_MAP = {
     txt: "plaintext", text: "plaintext", log: "plaintext",
@@ -82,18 +83,17 @@ const EditorManager = (function () {
 
   /**
    * Initialize Monaco editor. Returns a Promise that resolves when ready.
-   * Rejects if Monaco cannot load within the timeout (default 20s).
+   * The Promise is cached: calling init() again while loading or ready
+   * returns the same Promise (single-flight, no double editor creation).
    * MonacoEnvironment must be configured BEFORE this is called (see monaco-setup.js).
+   * Failures reject immediately via the AMD loader error callback — no fake timeout.
    */
   function init() {
-    return new Promise((resolve, reject) => {
-      if (monacoState === "READY") {
-        resolve(editor);
-        return;
-      }
+    if (monacoState === "READY") return Promise.resolve(editor);
+    if (initPromise) return initPromise;
 
-      monacoState = "LOADING";
-      const MONACO_TIMEOUT_MS = 20000;
+    monacoState = "LOADING";
+    initPromise = new Promise((resolve, reject) => {
       let settled = false;
 
       function markDone() {
@@ -110,15 +110,10 @@ const EditorManager = (function () {
           monacoState = "FAILED";
           monacoError = err;
           console.error("[STARTUP] Monaco FALHOU:", err);
+          initPromise = null; // allow a later retry
           reject(err);
         }
       }
-
-      // Timeout guard
-      const timer = setTimeout(() => {
-        console.error("[STARTUP] Monaco TIMEOUT após", MONACO_TIMEOUT_MS, "ms");
-        markFail(new Error("Monaco Editor não carregou dentro do tempo esperado. Verifique sua conexão ou reinstale o Lignis."));
-      }, MONACO_TIMEOUT_MS);
 
       // Configure AMD loader to use local Monaco files
       // preferScriptTags: force HTML <script> tag loading (avoids NodeScriptLoader which needs Node.js require)
@@ -129,7 +124,6 @@ const EditorManager = (function () {
         });
         console.log("[STARTUP] Monaco AMD loader configurado.");
       } catch (err) {
-        clearTimeout(timer);
         markFail(new Error(`Falha ao configurar Monaco: ${err.message}`));
         return;
       }
@@ -139,8 +133,7 @@ const EditorManager = (function () {
       try {
         require(["vs/editor/editor.main"], function () {
           console.log("[STARTUP] Monaco callback disparado.");
-          clearTimeout(timer);
-          if (settled) return; // Already timed out
+          if (settled) return; // Already resolved or failed
 
           // ── Validate Monaco actually loaded ──
           if (typeof monaco === "undefined" || !monaco.editor || typeof monaco.editor.create !== "function") {
@@ -298,14 +291,17 @@ const EditorManager = (function () {
           registerHtmlLanguageFeatures(monaco);
 
           markDone();
+        }, function (err) {
+          console.error("[STARTUP] Monaco falhou ao carregar módulos:", err);
+          markFail(new Error("Monaco Editor não pôde ser carregado. Reinstale o Lignis ou verifique os arquivos do editor."));
         });
       } catch (err) {
         console.error("[STARTUP] require() threw synchronously:", err);
-        clearTimeout(timer);
         markFail(err);
       }
 
     });
+    return initPromise;
   }
 
   /** Register enhanced HTML language features: auto-close tags, linked editing */

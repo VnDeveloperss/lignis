@@ -54,13 +54,9 @@ const App = (function () {
       }
       console.log("[Lignis] COMANDOS pronto.");
 
-      // Step 4: Platform detection (non-critical, with timeout)
+      // Step 4: Platform detection (non-critical)
       try {
-        const platformPromise = window.lignisAPI.getPlatform();
-        const platformTimeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Platform IPC timeout')), 3000)
-        );
-        const platformResult = await Promise.race([platformPromise, platformTimeout]);
+        const platformResult = await window.lignisAPI.getPlatform();
         if (platformResult.success && platformResult.data === "darwin") {
           document.body.classList.add("darwin");
         }
@@ -71,10 +67,12 @@ const App = (function () {
       await SettingsManager.init();
       console.log("[STARTUP] Settings pronto.");
 
-      // Step 6: Monaco Editor — load in background, non-blocking
+      // Step 6+7: Monaco Editor — single init in background (non-blocking),
+      // then restore session as soon as the editor is really ready.
       startupState = "LOADING_EDITOR";
       console.log("[STARTUP] Monaco iniciando (background)...");
-      EditorManager.init().then(() => {
+      const editorReady = EditorManager.init();
+      editorReady.then(() => {
         console.log("[STARTUP] Monaco pronto.");
         startupState = "READY_EDITOR";
       }).catch(err => {
@@ -82,9 +80,8 @@ const App = (function () {
         startupState = "FAILED_EDITOR";
       });
 
-      // Step 7: Session restore (non-blocking, runs after Monaco is ready)
-      startupState = "RESTORING";
-      EditorManager.init().then(async () => {
+      editorReady.then(async () => {
+        startupState = "RESTORING";
         try {
           await restoreSession();
           console.log("[STARTUP] Sessão restaurada.");
@@ -520,7 +517,7 @@ const App = (function () {
         let childrenEl = null;
         const caret = document.createElement("span");
         caret.className = "tree-caret";
-        caret.innerHTML = "<i class="fa-solid fa-caret-right"></i>";
+        caret.innerHTML = "<i class=\"fa-solid fa-caret-right\"></i>";
         el.prepend(caret);
         el.addEventListener("click", async (e) => {
           e.stopPropagation();
@@ -1644,11 +1641,3 @@ window.addEventListener("unhandledrejection", (event) => {
 window.addEventListener("error", (event) => {
   console.error("[STARTUP] Uncaught error:", event.message, event.filename, event.lineno);
 });
-
-// ── Global watchdog: force-hide overlay after 5s ──
-setTimeout(() => {
-  try {
-    const overlay = document.getElementById("loading-overlay");
-    if (overlay) overlay.classList.add("hidden");
-  } catch (_) {}
-}, 5000);

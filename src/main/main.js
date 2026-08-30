@@ -9,6 +9,7 @@ const { autoUpdater } = require("electron-updater");
 // ─── Auto Updater Configuration ─────────────────────
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
+let updateInstalling = false;
 autoUpdater.logger = {
   info: (msg) => console.log("[Update]", msg),
   warn: (msg) => console.warn("[Update]", msg),
@@ -225,14 +226,21 @@ ipcMain.handle("update-download", () => {
   });
 });
 
-ipcMain.handle("update-install", async () => {
-  // Check for unsaved documents before installing
+ipcMain.handle("update-install", () => {
+  // The renderer only invokes this after confirming no unsaved documents
+  // (see the guarded action button in app.js). Request a graceful close and
+  // install as soon as the window is really closed — event-driven, no delay.
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("window-close-request");
-    // Wait a moment for the user to save
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    mainWindow.once("closed", () => {
+      if (!updateInstalling) {
+        updateInstalling = true;
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
+  } else {
+    autoUpdater.quitAndInstall(false, true);
   }
-  autoUpdater.quitAndInstall(false, true);
 });
 
 ipcMain.handle("update-check-manual", () => {

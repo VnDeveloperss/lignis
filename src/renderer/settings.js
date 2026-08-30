@@ -24,12 +24,7 @@ const SettingsManager = (function () {
 
   async function init() {
     try {
-      // IPC timeout: if settings don't load in 5s, continue with defaults
-      const settingsPromise = window.lignisAPI.getSettings();
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Settings IPC timeout')), 5000)
-      );
-      const r = await Promise.race([settingsPromise, timeoutPromise]);
+      const r = await window.lignisAPI.getSettings();
       settings = r.success ? { ...defaults, ...r.data } : { ...defaults };
     } catch (err) {
       console.warn('[STARTUP] Settings load failed, using defaults:', err.message);

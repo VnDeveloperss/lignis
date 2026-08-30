@@ -62,6 +62,7 @@ const ALLOWED_RECEIVE_CHANNELS = [
   "zoom-in",
   "zoom-out",
   "zoom-reset",
+  "set-theme",
   "open-command-palette",
   "open-settings",
   "open-about",
