@@ -673,7 +673,6 @@ function setupIpc(mainWindow, store, extManager) {
     terminals.delete(id);
     return { success: true };
   });
-}
 
 // ── Extension IPC Handlers ──
   ipcMain.handle("extension-discover", () => {
@@ -800,5 +799,25 @@ function setupIpc(mainWindow, store, extManager) {
       return { success: false, error: err.message };
     }
   });
+
+  // Read extension docs files from docs/extensions/
+  ipcMain.handle("extension-docs-read", (event, filename) => {
+    try {
+      const docsDir = path.join(__dirname, "..", "..", "docs", "extensions");
+      const filePath = path.join(docsDir, path.basename(filename));
+      // Security: only allow files from docs/extensions, no path traversal
+      if (!filePath.startsWith(docsDir)) {
+        return { success: false, error: "Path not allowed" };
+      }
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: "File not found" };
+      }
+      const content = fs.readFileSync(filePath, "utf-8");
+      return { success: true, data: { content } };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+}
 
 module.exports = { setupIpc };

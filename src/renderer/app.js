@@ -697,17 +697,23 @@ const App = (function () {
       try { termFitAddon.fit(); } catch (_) {}
     }
 
+    // Register output listener BEFORE creating PTY to avoid missing prompt
+    termDataUnsub = window.lignisAPI.on("terminal-data", (data) => {
+      if (data.id === terminalId && terminalInstance) {
+        try { terminalInstance.write(data.data); } catch (_) {}
+      }
+    });
+
     // Intercept Lignis commands in terminal (only exact $namespace.command() patterns)
     terminalInstance.onData((data) => {
       if (data === "\r" || data === "\n") {
         const trimmed = termLineBuffer.trim();
         // Only intercept exact Lignis command patterns, not $env:PATH etc.
         if (typeof LignisCommands !== "undefined" && LignisCommands.isEnabled()) {
-          const parsed = (typeof CommandRegistry !== "undefined" && CommandRegistry.parse)
-            ? CommandRegistry.parse(trimmed) : null;
+          const CR = (typeof CommandRegistry !== "undefined") ? CommandRegistry : (window.lignisAPI && window.lignisAPI.CommandRegistry);
+          const parsed = CR && CR.parse ? CR.parse(trimmed) : null;
           if (parsed) {
-            const execResult = (typeof CommandRegistry !== "undefined" && CommandRegistry.execute)
-              ? CommandRegistry.execute(parsed) : null;
+            const execResult = CR && CR.execute ? CR.execute(parsed) : null;
             if (execResult && execResult.success) {
               terminalInstance.write("\r\n" + String(execResult.value) + "\r\n");
               termLineBuffer = "";
@@ -724,6 +730,7 @@ const App = (function () {
       } else {
         termLineBuffer += data;
       }
+      // Always forward input to terminal
       if (terminalId) {
         window.lignisAPI.terminalWrite(terminalId, data);
       }
@@ -736,12 +743,6 @@ const App = (function () {
     const result = await window.lignisAPI.terminalCreate({ cwd, cols, rows });
     if (result.success) {
       terminalId = result.data.id;
-      // Store unsub function to prevent listener stacking
-      termDataUnsub = window.lignisAPI.on("terminal-data", (data) => {
-        if (data.id === terminalId && terminalInstance) {
-          try { terminalInstance.write(data.data); } catch (_) {}
-        }
-      });
       syncTerminalSize();
     } else {
       terminalInstance.write(`\r\n[Erro] Não foi possível iniciar o terminal.\r\n`);
@@ -1146,6 +1147,73 @@ const App = (function () {
     });
   }
 
+  // ─── Extension Docs ────────────────────
+  function openExtensionDocs() {
+    const overlay = document.createElement("div");
+    overlay.id = "ext-docs-overlay";
+    overlay.className = "hidden";
+    overlay.innerHTML = `
+      <div id="ext-docs-dialog">
+        <div class="ext-docs-header">
+          <h2><i class="fa-solid fa-book"></i> Desenvolvimento de Extensões</h2>
+          <button class="settings-close" id="ext-docs-close" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ext-docs-body">
+          <div class="ext-docs-nav" id="ext-docs-nav"></div>
+          <div class="ext-docs-content" id="ext-docs-content"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const docs = [
+      { id: "intro", title: "Introdução", file: "README.md" },
+      { id: "getting-started", title: "Primeira Extensão", file: "GETTING-STARTED.md" },
+      { id: "api", title: "Referência da API", file: "API.md" },
+    ];
+
+    const nav = document.getElementById("ext-docs-nav");
+    const content = document.getElementById("ext-docs-content");
+
+    docs.forEach((doc, i) => {
+      const btn = document.createElement("button");
+      btn.className = "ext-docs-nav-btn" + (i === 0 ? " active" : "");
+      btn.textContent = doc.title;
+      btn.addEventListener("click", () => loadDoc(doc, btn));
+      nav.appendChild(btn);
+    });
+
+    async function loadDoc(doc, activeBtn) {
+      nav.querySelectorAll(".ext-docs-nav-btn").forEach(b => b.classList.remove("active"));
+      if (activeBtn) activeBtn.classList.add("active");
+      content.innerHTML = `<div style="padding:20px;color:var(--text-muted)"><i class="fa-solid fa-spinner fa-spin"></i> Carregando...</div>`;
+      try {
+        const result = await window.lignisAPI.invoke("extension-docs-read", doc.file);
+        if (result && result.success) {
+          if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+            content.innerHTML = DOMPurify.sanitize(marked.parse(result.data.content));
+          } else {
+            content.innerHTML = "<pre>" + result.data.content + "</pre>";
+          }
+        } else {
+          content.innerHTML = `<div style="padding:20px;color:#ff6b6b">Arquivo não encontrado: ${doc.file}</div>`;
+        }
+      } catch (_) {
+        content.innerHTML = `<div style="padding:20px;color:#ff6b6b">Falha ao carregar documentação.</div>`;
+      }
+    }
+
+    // Close handlers
+    document.getElementById("ext-docs-close").addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    document.addEventListener("keydown", function escHandler(e) {
+      if (e.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", escHandler); }
+    });
+
+    overlay.classList.remove("hidden");
+    loadDoc(docs[0], nav.querySelector(".ext-docs-nav-btn"));
+  }
+
   // ─── Toasts ──────────────────────────────
   function showToast(message, type = "info", duration = 3000) {
     const container = document.getElementById("toast-container");
@@ -1353,6 +1421,7 @@ const App = (function () {
     api.on("open-about", showAbout);
     api.on("menu-open-commands-help", () => LignisCommands.openHelp());
     api.on("open-extensions", () => ExtensionsPanel.open());
+    api.on("open-extension-docs", () => openExtensionDocs());
 
     api.on("zoom-in", () => {
       const size = EditorManager.zoomIn();

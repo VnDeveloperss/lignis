@@ -365,6 +365,10 @@ function buildMenu(mainWindow, store) {
         },
         { type: "separator" },
         {
+          label: "Desenvolvimento de Extensões",
+          click: () => mainWindow.webContents.send("open-extension-docs"),
+        },
+        {
           label: "Verificar atualizações",
           click: () => mainWindow.webContents.send("open-update-check"),
         },

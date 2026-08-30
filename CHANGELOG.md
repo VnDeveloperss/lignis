@@ -1,5 +1,21 @@
 # Changelog — Lignis
 
+## Versão 3.5.1
+
+### Novidades
+- Documentação de extensões integrada ao aplicativo (Ajuda > Desenvolvimento de Extensões).
+- Visualizador de documentação com navegação lateral, busca e renderização Markdown.
+
+### Melhorias
+- Terminal: listener de output registrado antes da criação do PTY para evitar perda do prompt inicial.
+- Terminal: comandos Lignis agora são interceptados corretamente no terminal integrado.
+- IPC: handlers de extensões movidos para dentro do escopo correto do setupIpc.
+
+### Correções
+- Corrigido erro ao usar Instalar Extensão (dialog de seleção de pasta).
+- Corrigida referência de mainWindow inacessível em handlers de extensão.
+- Corrigida interceptação de comandos Lignis no terminal (CommandRegistry não era encontrado).
+
 ## Versão 3.5.0
 
 ### Novidades

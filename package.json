@@ -1,6 +1,6 @@
 {
   "name": "lignis",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "description": "Lignis - Editor de texto e código moderno, rápido e extensível",
   "main": "src/main/main.js",
   "scripts": {

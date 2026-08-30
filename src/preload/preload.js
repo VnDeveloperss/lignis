@@ -84,6 +84,7 @@ const ALLOWED_RECEIVE_CHANNELS = [
   "ext-show-error",
   "ext-show-progress",
   "open-extensions",
+  "open-extension-docs",
 ];
 
 // Whitelist of allowed invoke channels (renderer -> main)
@@ -150,6 +151,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   "ext-find-files",
   "ext-open-document",
   "extension-get-commands",
+  "extension-docs-read",
   "extension-validate",
   "extension-export",
   "extension-rollback",
