@@ -13,7 +13,13 @@ const CURRENT_VERSION = 1;
 class DatabaseService {
   constructor() {
     this.db = null;
-    this.dbPath = path.join(app.getPath("userData"), "lignis.db");
+    this.dbPath = null; // initialized lazily
+  }
+
+  _ensurePath() {
+    if (!this.dbPath) {
+      this.dbPath = path.join(app.getPath("userData"), "lignis.db");
+    }
   }
 
   /**
@@ -21,6 +27,7 @@ class DatabaseService {
    */
   init() {
     try {
+      this._ensurePath();
       // Ensure directory exists
       const dir = path.dirname(this.dbPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -49,8 +56,9 @@ class DatabaseService {
   }
 
   _backupCorrupted() {
+    this._ensurePath();
     try {
-      if (fs.existsSync(this.dbPath)) {
+      if (this.dbPath && fs.existsSync(this.dbPath)) {
         const backupPath = this.dbPath + `.backup.${Date.now()}.db`;
         fs.copyFileSync(this.dbPath, backupPath);
         fs.unlinkSync(this.dbPath);
@@ -356,7 +364,7 @@ class DatabaseService {
   // ═══════════════════════════════════════
 
   healthCheck() {
-    if (!this.db) return { ok: false, error: "Database not initialized" };
+    if (!this.db) return { ok: false, error: "Database not initialized (lazy)" };
     try {
       this.db.prepare("SELECT 1").get();
       return { ok: true };
@@ -373,6 +381,6 @@ class DatabaseService {
   }
 }
 
-// Singleton
+// Singleton (lazy — db.init() must be called after app.whenReady())
 const db = new DatabaseService();
 module.exports = { DatabaseService, db };

@@ -1,5 +1,19 @@
 # Changelog — Lignis
 
+## Versão 3.6.1
+
+### Correções
+- Corrigido travamento na inicialização causado pelo SQLite bloqueando o event loop do Electron.
+- DatabaseService agora é inicializado de forma diferida (deferred) após a criação da janela.
+- Corrigido registro duplicado de handlers IPC durante startup.
+- Melhorada instrumentação de startup com logs claros em cada etapa.
+- Adicionados handlers de erro para uncaughtException e unhandledRejection no processo principal.
+- Adicionado monitoramento de falhas do renderer (did-fail-load, render-process-gone, preload-error).
+- Fallback de timeout para ready-to-show (8s) garante que a janela sempre apareça.
+- Módulos não críticos (SQLite, ExtensionManager, DevMode) são carregados de forma segura com try/catch.
+- A mensagem crashpad_client_win.cc(867): not connected é apenas o reporter de crashes do Chromium não conectado — não afeta o funcionamento.
+- Verificado: 10/10 inicializações completam com sucesso.
+
 ## Versão 3.6.0
 
 ### Novidades
