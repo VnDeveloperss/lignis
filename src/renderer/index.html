@@ -4,20 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self' file:;
-    script-src 'self' blob: file: https://cdn.jsdelivr.net;
-    style-src 'self' 'unsafe-inline' blob: data: file: https://cdn.jsdelivr.net;
-    font-src 'self' data: blob: file:;
+    default-src 'self';
+    script-src 'self' blob:;
+    style-src 'self' 'unsafe-inline' blob: data:;
+    font-src 'self' data: blob:;
     img-src 'self' data: blob:;
     worker-src 'self' blob:;
-    connect-src 'self';
+    connect-src 'self' blob:;
   ">
   <title>Lignis</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="fontawesome/css/all.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" onerror="console.warn('[Lignis] xterm.css não disponível.')">
+  <link rel="stylesheet" href="vendor/xterm/xterm.css">
+  <!-- UMD libs (xterm, marked, dompurify) MUST load BEFORE Monaco's AMD
+       loader.js sets window.define; otherwise their UMD factory lands in
+       Monaco's loader and breaks anonymous module loading. -->
+  <script src="vendor/xterm/xterm.js"></script>
+  <script src="vendor/xterm/addon-fit.js"></script>
+  <script src="vendor/marked/marked.min.js"></script>
+  <script src="vendor/dompurify/purify.min.js"></script>
   <script src="monaco-setup.js"></script>
-  <script src="monaco/loader.js"></script>
+  <script src="vs/loader.js"></script>
 </head>
 <body>
   <!-- Tab Bar -->
@@ -308,10 +315,6 @@
   <!-- Toast & Loading -->
   <div id="toast-container"></div>
   <div id="loading-overlay" class="hidden"><div class="loading-spinner"></div><span id="loading-text">Iniciando Lignis...</span></div>
-
-  <!-- xterm.js for terminal (optional, non-blocking) -->
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js" defer onerror="console.warn('[Lignis] xterm.js não disponível via CDN.')"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js" defer onerror="console.warn('[Lignis] FitAddon não disponível.')"></script>
 
   <script src="locales/pt-BR.js"></script>
   <script src="locale.js"></script>

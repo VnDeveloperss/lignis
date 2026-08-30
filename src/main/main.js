@@ -1,10 +1,40 @@
-const { app, BrowserWindow, dialog, shell, Menu } = require("electron");
+const { app, BrowserWindow, dialog, shell, Menu, protocol, net } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { pathToFileURL } = require("url");
 const { setupIpc } = require("./ipc");
 const { buildMenu } = require("./menu");
 const Store = require("electron-store");
 const { autoUpdater } = require("electron-updater");
+
+// Renderer content is served over a custom privileged scheme (lignis://app)
+// instead of file://. This gives workers a stable same-origin base so Monaco
+// can importScripts() its worker files and nls strings offline.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "lignis",
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: false },
+  },
+]);
+
+const rendererRoot = path.join(__dirname, "..", "renderer");
+
+function registerLignisProtocol() {
+  protocol.handle("lignis", (request) => {
+    try {
+      const url = new URL(request.url);
+      let rel = decodeURIComponent(url.pathname);
+      if (rel === "/" || rel === "") rel = "/index.html";
+      const filePath = path.normalize(path.join(rendererRoot, rel));
+      if (!filePath.startsWith(rendererRoot)) {
+        return new Response("Forbidden", { status: 403 });
+      }
+      return net.fetch(pathToFileURL(filePath).toString());
+    } catch (err) {
+      return new Response(`Bad request: ${err.message}`, { status: 400 });
+    }
+  });
+}
 
 // ─── Auto Updater Configuration ─────────────────────
 autoUpdater.autoDownload = false;
@@ -98,7 +128,7 @@ function createWindow() {
     frame: true,
   });
 
-  mainWindow.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
+  mainWindow.loadURL("lignis://app/index.html");
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
@@ -108,17 +138,6 @@ function createWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       const [width, height] = mainWindow.getSize();
       store.set("windowBounds", { width, height });
-    }
-  });
-
-  mainWindow.on("enter-full-screen", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("window-fullscreen-changed", true);
-    }
-  });
-  mainWindow.on("leave-full-screen", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("window-fullscreen-changed", false);
     }
   });
 
@@ -143,6 +162,7 @@ if (!gotTheLock) {
 }
 
 app.whenReady().then(() => {
+  registerLignisProtocol();
   createWindow();
   setupIpc(mainWindow, store);
 

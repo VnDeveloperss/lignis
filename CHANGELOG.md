@@ -1,17 +1,24 @@
 # Changelog — Lignis
 
-## Versão 3.1.1 (Hotfix)
+## Em desenvolvimento (pós 3.1.1)
 
-### Correções
-- **Corrigido loader infinito do Monaco**: A causa raiz era que o loader AMD do Monaco não expunha a função `define` globalmente no Electron Renderer quando `preferScriptTags` estava ativo, impedindo que scripts carregados via `<script>` tag registrassem módulos. Correção aplicada no loader AMD.
-- **Adicionado timeout IPC ao carregamento de configurações**: Se as configurações demorarem mais que 5 segundos para carregar via IPC, o aplicativo continua com valores padrão em vez de travar.
-- **Adicionado timeout à detecção de plataforma**: A detecção de plataforma agora tem timeout de 3 segundos para evitar travamento.
-- **Removido fallback redundante de 3 segundos**: O fallback de injeção direta de `<script>` foi removido do editor, pois a correção da causa raiz o torna desnecessário.
-- **Melhorado tratamento de erros na inicialização**: Process.versions agora é acessado com tratamento de erro adequado.
+> Nota: as correções listadas na versão 3.1.1 abaixo foram aplicadas no modo "band-aid" e **substituídas** pelas correções definitivas das Fases 2 e 3 a seguir.
 
-### Melhorias
-- **Inicialização mais robusta**: Etapas críticas agora possuem timeouts independentes, evitando que uma falha bloqueie toda a inicialização.
-- **Logs de diagnóstico aprimorados**: Mensagens de erro mais detalhadas durante o processo de inicialização.
+### Fase 2 — Estabilização da inicialização
+- **Causa raiz do loader infinito corrigida**: Havia um erro de sintaxe em `app.js` (string de ícone com aspas quebradas) que impedia o parse do arquivo inteiro e, portanto, a inicialização do Monaco. Com a causa real resolvida, os watchdogs e timeouts artificiais foram removidos.
+- **Inicialização única do Monaco**: `EditorManager.init()` agora é *single-flight* (a mesma Promise é retornada em chamadas simultâneas) e falhas são reportadas pelo *errback* real do loader AMD — removido o timeout falso de 20s.
+- **Inicialização do app sem watchdog global**: `App.start()` chama `EditorManager.init()` uma única vez e aguarda a Promise real; removidos o watchdog de 5s e o timeout artificial de 3s da detecção de plataforma.
+- **Configurações sem timeout fake**: Removido o timeout de 5s do carregamento via IPC em `settings.js`.
+- **Atualização pós download mais segura**: `update-install` agora instala no evento `closed` da janela (com flag para evitar dupla instalação), em vez de espera fixa de 2s.
+- **Menu Exibir → Tema funcionando**: canal `set-theme` adicionado à whitelist de `ipcRenderer` do preload.
+
+### Fase 3 — Higiene e operação totalmente offline
+- **Layout padrão `vs/` restaurado para o Monaco**: A pasta `src/renderer/monaco` (achatada) virou `src/renderer/vs`, o layout canônico que o Monaco espera internamente. Isso corrige a falha de carregamento das strings de idioma nos workers web (`Failed trying to load default language strings [DOMException]`), que ocorria porque o worker resolvia módulos em `vs/...` fisicamente.
+- **Carregamento de libs UMD antes do AMD**: `xterm`, `marked` e `DOMPurify` são carregados **antes** do `loader.js` do Monaco, evitando que seus factories UMD caiam no `define` global do AMD — eliminando os erros "Can only have one anonymous define call per script file" e "Duplicate definition of module".
+- **Loader AMD do Monaco restaurado ao original**: Removido o patch anterior que forçava `define` global (36 patches do 3d47477), agora desnecessário e incorreto.
+- **Protocolo `lignis://` para toda a interface**: `loadURL("lignis://app/index.html")` com `protocol.handle` + `net.fetch`, CSP atualizada (sem CDN, sem `file:`), permitindo caminhos absolutos estáveis (`lignis://app/vs/...`) para Monaco e workers em build empacotado.
+- **Dependências de renderer vendored localmente**: `@xterm/xterm`, `@xterm/addon-fit`, `marked`, `dompurify` copiados para `src/renderer/vendor/` — sem CDN, 100% offline.
+- **Canais IPC mortos removidos**: limpeza de `menu-close-right`, `menu-word-count`, `menu-toggle-comment`, `check-unsaved-before-close`, `window-fullscreen-changed` (preload e main).
 
 ---
 

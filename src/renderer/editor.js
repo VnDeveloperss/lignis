@@ -70,15 +70,12 @@ const EditorManager = (function () {
 
   /**
    * Determine the base URL for Monaco's `vs/` directory.
-   * In development: src/renderer/monaco/
-   * In packaged app: app.asar/src/renderer/monaco/ (or unpacked)
-   * This function resolves the path relative to the current HTML page.
+   * The standard Monaco AMD layout lives at src/renderer/vs/ (page-relative "vs").
+   * This is the SAME layout the workers expect, so workerMain.js can resolve
+   * "vs/..." modules (loader, nls, language services) without special-casing.
    */
   function getMonacoBase() {
-    // The HTML page is in src/renderer/index.html
-    // Monaco files are in src/renderer/monaco/vs/
-    // So relative to the page, it's "monaco"
-    return "./monaco";
+    return "vs";
   }
 
   /**

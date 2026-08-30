@@ -4,17 +4,18 @@
 // Forces web worker mode in Electron (avoids Node.js fs/vm usage)
 // ========================================
 (function () {
-  // Compute absolute base URL for workers (blob workers can't resolve relative URLs)
-  var monacoBase;
+  // Absolute URL of the page root (e.g. lignis://app/). Workers base every
+  // "vs/..." module resolution on this, matching Monaco's standard layout.
+  var pageRoot;
   try {
-    monacoBase = new URL("./monaco", document.baseURI || location.href).href;
-    // Remove trailing slash if present
-    if (monacoBase.endsWith("/")) monacoBase = monacoBase.slice(0, -1);
+    pageRoot = new URL(".", document.baseURI || location.href).href;
   } catch (e) {
-    monacoBase = "./monaco";
+    pageRoot = "./";
   }
+  // Ensure trailing slash so "vs/..." concatenates cleanly
+  if (!pageRoot.endsWith("/")) pageRoot += "/";
 
-  var workerMainUrl = monacoBase + "/base/worker/workerMain.js";
+  var workerMainUrl = pageRoot + "vs/base/worker/workerMain.js";
 
   window.MonacoEnvironment = {
     getWorkerUrl: function (moduleId, label) {
@@ -26,7 +27,7 @@
 
       var blobCode = [
         'self.MonacoEnvironment = {',
-        '  baseUrl: "' + monacoBase + '"',
+        '  baseUrl: "' + pageRoot + '"',
         '};',
         'importScripts("' + workerMainUrl + '");'
       ].join("\n");
@@ -36,5 +37,5 @@
     },
   };
 
-  console.log("[STARTUP] MonacoEnvironment configurado. Base:", monacoBase);
+  console.log("[STARTUP] MonacoEnvironment configurado. Root:", pageRoot, "Worker:", workerMainUrl);
 })();

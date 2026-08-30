@@ -775,17 +775,10 @@ const App = (function () {
   }
 
   function setupMarkdownLibraries() {
-    const markedScript = document.createElement("script");
-    markedScript.src = "https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js";
-    markedScript.onload = () => { markedLib = window.marked; };
-    markedScript.onerror = () => console.warn("[Lignis] Falha ao carregar marked.js via CDN.");
-    document.head.appendChild(markedScript);
-
-    const purifyScript = document.createElement("script");
-    purifyScript.src = "https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js";
-    purifyScript.onload = () => { DOMPurifyLib = window.DOMPurify; };
-    purifyScript.onerror = () => console.warn("[Lignis] Falha ao carregar DOMPurify via CDN.");
-    document.head.appendChild(purifyScript);
+    // Libraries are loaded statically in index.html BEFORE Monaco's AMD loader.js
+    // sets window.define (otherwise their UMD factory would break the loader).
+    markedLib = window.marked || null;
+    DOMPurifyLib = window.DOMPurify || null;
   }
 
   function toggleMarkdownPreview() {
